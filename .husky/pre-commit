@@ -1,0 +1,11 @@
+# Run linting
+echo "🔍 Running ESLint..."
+npm run lint
+
+# Run format check
+echo "✨ Checking code formatting..."
+npm run format:check
+
+# Run tests
+echo "🧪 Running tests..."
+npm run test

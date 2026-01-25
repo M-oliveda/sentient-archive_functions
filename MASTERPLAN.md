@@ -909,12 +909,140 @@ open http://localhost:4000
 
 **5. Seed test data:**
 
+The project includes a comprehensive seed script that creates realistic test data for
+local development. The seed script automatically waits for emulators to be ready before
+populating data.
+
 ```bash
 # Wait for emulators to be ready (about 10 seconds)
 npm run seed
 
 # Or use the script directly
 ./scripts/run-seed.sh
+```
+
+**Seed Script Data Generation:**
+
+The seed script (`scripts/seed-emulator.ts`) creates:
+
+| Resource                  | Quantity | Description                                      |
+| :------------------------ | :------- | :----------------------------------------------- |
+| **Admin Users**           | 2        | Full administrative privileges                   |
+| **Client Users**          | 8        | Standard user accounts                           |
+| **Notes per User**        | 8-12     | Realistic notes with varied content types        |
+| **Total Notes**           | 60-100   | Meeting notes, recipes, journals, learning notes |
+| **Transactions per User** | 3-10     | Token grants and AI operation deductions         |
+| **System Config**         | 1 record | AI model settings, costs, and feature flags      |
+
+**Test Credentials Generated:**
+
+```text
+🔐 Admin Accounts:
+  admin1@sentientarchive.local / Admin123!
+  admin2@sentientarchive.local / Admin123!
+
+👤 Client Accounts:
+  All use password: Client123!
+  Emails are randomly generated (e.g., firstname.lastname@example.com)
+  Full list displayed in seed output
+```
+
+**Seed Script Architecture:**
+
+```typescript
+// scripts/seed-emulator.ts
+async function main() {
+  await seedUsers(); // Create auth users and Firestore profiles
+  await seedNotes(); // Generate realistic note content
+  await seedTransactions(); // Create token transaction history
+  await seedSystemConfig(); // Set up system configuration
+  printSummary(); // Display credentials and stats
+}
+```
+
+**Note Content Templates:**
+
+The seed script uses 6 different note templates with realistic content:
+
+1. **Meeting Notes** - Agendas, attendees, action items
+2. **Book Summaries** - Titles, authors, key takeaways, quotes
+3. **Project Plans** - Objectives, timelines, milestones, risks
+4. **Learning Notes** - Concepts, examples, code snippets
+5. **Daily Journals** - Goals, accomplishments, gratitude
+6. **Recipes** - Ingredients, instructions, cooking times
+
+Each note includes:
+
+- Realistic title and content (generated with Faker.js)
+- Relevant tags (manual + AI-generated)
+- Random flashcards (70% of notes)
+- Random summaries (50% of notes)
+- Proper timestamps and metadata
+
+**Token Economy Setup:**
+
+Each user starts with:
+
+- **Initial Grant:** 1000 tokens (configurable)
+- **Transaction History:** 3-10 random operations
+- **Operation Types:** summarize, autoTag, flashcards, ragQuery
+- **Proper Balance Tracking:** Accurate balanceBefore/balanceAfter
+
+**Seed Script Features:**
+
+```bash
+# Features of scripts/run-seed.sh:
+✅ Checks if emulators are running
+✅ Waits for all emulators to be healthy
+✅ Uses tsx for fast TypeScript execution
+✅ Validates emulator connections (UI, Firestore, Auth)
+✅ Displays detailed progress and summary
+✅ Shows all generated credentials
+✅ Handles errors gracefully
+```
+
+**Environment Configuration:**
+
+The seed script automatically detects and uses emulator ports:
+
+```typescript
+// Automatically configured
+FIRESTORE_EMULATOR_HOST = "localhost:8081";
+FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099";
+GCLOUD_PROJECT = "demo-sentient-archive";
+```
+
+**Persistent Data with Import/Export:**
+
+Data is automatically preserved between restarts:
+
+```bash
+# First run: Seed creates initial data
+npm run seed
+
+# Stop emulators (triggers --export-on-exit)
+docker compose stop
+# → Data saved to ./firebase/seed-data/
+
+# Next startup: Data auto-imported
+docker compose up
+# → Logs show: "✓ emulators: Importing data from ./seed-data"
+```
+
+**Seed Management Commands:**
+
+```bash
+# Seed with existing data intact
+npm run seed
+
+# Clear all data and seed from scratch
+npm run seed:fresh
+
+# Reset emulators only (clears data)
+npm run emulators:reset
+
+# Export current data manually
+npm run emulators:export
 ```
 
 **6. Test the API:**
@@ -941,41 +1069,50 @@ curl -H "Authorization: Bearer <token>" \
 
 ```yaml
 # docker-compose.yml
+name: sentient-archive-functions_local
+
 services:
-  firebase-emulator:
+  firebase-emulators:
     build:
       context: ./firebase
       dockerfile: Dockerfile
-    container_name: sentient-archive-emulators
+    container_name: firebase-emulators
     ports:
       - "4000:4000" # Emulator UI
+      - "4500:4500" # Emulator UI WebSocket
       - "5001:5001" # Functions Emulator
-      - "8080:8080" # Firestore Emulator
+      - "8081:8081" # Firestore Emulator
       - "9099:9099" # Auth Emulator
-      - "9199:9199" # Storage Emulator (future use)
+      - "9150:9150" # Firestore WebSocket
+      - "9199:9199" # Storage Emulator
+      - "9299:9299" # Firealerts/EventArc Emulator
     volumes:
-      # Mount Firebase configuration
+      # Mount Firebase configuration files
       - ./firebase.json:/app/firebase.json:ro
       - ./.firebaserc:/app/.firebaserc:ro
       - ./firestore.rules:/app/firestore.rules:ro
       - ./firestore.indexes.json:/app/firestore.indexes.json:ro
+      - ./storage.rules:/app/storage.rules:ro
 
-      # Mount source code for hot reload
+      # Mount source code for hot reload (functions)
       - ./src:/app/src:ro
       - ./package.json:/app/package.json:ro
+      - ./package-lock.json:/app/package-lock.json:ro
       - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./tsconfig.build.json:/app/tsconfig.build.json:ro
 
-      # Persistent emulator data
-      - ./firebase/emulator-data:/app/.firebase:rw
+      # Persistent emulator data (import/export)
+      - ./firebase/seed-data:/app/seed-data:rw
 
-      # Node modules cache
+      # Node modules volume for performance
       - firebase_node_modules:/app/node_modules
     environment:
       - FIREBASE_PROJECT_ID=demo-sentient-archive
       - FUNCTIONS_EMULATOR=true
-      - FIRESTORE_EMULATOR_HOST=localhost:8080
-      - FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8081
+      - FIREBASE_AUTH_EMULATOR_HOST=0.0.0.0:9099
+      - FIREBASE_STORAGE_EMULATOR_HOST=0.0.0.0:9199
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NODE_ENV=development
     networks:
       - sentient-network
@@ -984,7 +1121,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
+    # Install dependencies on container start
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        # Only install if node_modules is empty
+        if [ ! -d "node_modules/firebase-tools" ]; then
+          echo "Installing dependencies..."
+          npm ci --prefer-offline --no-audit
+        fi
+
+        echo "Building TypeScript..."
+        npm run build
+
+        echo "Starting Firebase Emulators..."
+        # If seed-data folder is empty, Firebase will just warn and start clean.
+        # Once you shut down, it will populate this folder for the next run.
+        firebase emulators:start --import=./seed-data --export-on-exit --project demo-sentient-archive
 
 volumes:
   firebase_node_modules:
@@ -1001,33 +1156,27 @@ networks:
 # firebase/Dockerfile
 FROM node:24-alpine
 
-# Install Java (required for Firestore emulator)
-RUN apk add --no-cache openjdk11-jre curl bash
+# Install Java (required for Firestore emulator) and required tools
+RUN apk add --no-cache openjdk21-jre curl bash
 
-# Install Firebase CLI globally
-RUN npm install -g firebase-tools
+# Install Firebase CLI globally (pinned version for stability)
+RUN npm install -g firebase-tools@latest
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY ../package*.json ./
-
-# Install dependencies
-RUN npm ci
-
 # Expose emulator ports
 EXPOSE 4000 5001 8080 9099 9199
 
-# Create directory for emulator data
-RUN mkdir -p .firebase
+# Create directory for emulator data (will be overridden by volume mount)
+RUN mkdir -p seed-data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
   CMD curl -f http://localhost:4000 || exit 1
 
-# Start Firebase emulators
-CMD ["firebase", "emulators:start", "--import=./.firebase", "--export-on-exit"]
+# Default command (overridden by docker-compose)
+CMD ["firebase", "emulators:start", "--import=./seed-data", "--export-on-exit", "--project", "demo-sentient-archive"]
 ```
 
 #### .dockerignore
@@ -1056,59 +1205,131 @@ TODO.md
 
 ### 10.5 Seed Data for Local Testing
 
-The seed data script populates the Firebase Emulator with realistic test data to
-simulate a production-like environment.
+The seed data script (`scripts/seed-emulator.ts`) populates the Firebase Emulator with
+realistic test data to simulate a production-like environment. The seed script uses
+**tsx** for fast TypeScript execution and **Faker.js** for generating realistic data.
+
+#### Quick Start
+
+```bash
+# Start emulators
+npm run emulators:start
+
+# Wait 10-15 seconds, then seed
+npm run seed
+
+# Or use wrapper script that checks emulator health
+./scripts/run-seed.sh
+```
 
 #### What Gets Seeded
 
 **1. User Accounts (10 users):**
 
 - **2 Admin users:**
-  - `admin@sentient.dev` (password: `Admin123!`)
-  - `superadmin@sentient.dev` (password: `Super123!`)
-  - High token balances (500-1000 tokens)
+  - `admin1@sentientarchive.local` / `Admin123!`
+  - `admin2@sentientarchive.local` / `Admin123!`
+  - Initial token balance: 10,000 tokens
+  - Custom claims: `{ role: "admin" }`
 
 - **8 Client users:**
-  - `user1@sentient.dev` through `user8@sentient.dev`
-  - Password: `User123!` (for all)
-  - Varied token balances (0-100 tokens)
-  - Different registration dates (last 6 months)
+  - Randomly generated names (e.g., `alexandrea.predovic@example.com`)
+  - Password: `Client123!` (for all)
+  - Initial token balance: 1,000 tokens
+  - Custom claims: `{ role: "client" }`
+  - Realistic profiles with avatars, preferences, timestamps
 
-**2. Notes (50-100 notes total):**
+**2. Notes (60-100 notes total):**
 
-- **Manual notes:** Created by users directly
-- **File-extracted notes:** Simulating PDF/TXT/MD extraction
-- **Varied content:**
-  - Short notes (100-300 words)
-  - Medium notes (300-800 words)
-  - Long notes (800-2000 words)
-- **Folder organization:** 3-5 folders per user
-- **Tags:** Mix of manual and AI-generated tags
-- **AI content:** Some notes have summaries and flashcards
+Distributed across client users (8-12 notes per user) with 6 content templates:
 
-**3. Transaction History (200+ transactions):**
+| Template       | Description                                      | Tags                       |
+| :------------- | :----------------------------------------------- | :------------------------- |
+| Meeting Notes  | Agendas, attendees, action items, next steps     | meeting, notes, work       |
+| Book Summaries | Title, author, key takeaways, quotes, rating     | book, summary, reading     |
+| Project Plans  | Objectives, timeline, milestones, risks, metrics | project, planning, work    |
+| Learning Notes | Concepts, examples, code snippets, questions     | learning, education, notes |
+| Daily Journals | Goals, accomplishments, gratitude, reflections   | journal, daily, personal   |
+| Recipes        | Ingredients, instructions, tips, variations      | recipe, cooking, food      |
 
-- **Token grants:** Admin granting tokens to users
-- **Token deductions:** AI operations (summarize, autoTag, flashcards, ragQuery)
-- **Realistic timestamps:** Spread over last 3 months
-- **Varied amounts:** Following token cost structure
+**Note Features:**
 
-**4. AI Request Logs (150+ requests):**
+- Realistic titles and markdown content (generated with Faker.js)
+- Manual tags (from templates) + AI tags (random selection)
+- 50% have AI-generated summaries
+- 30% have flashcards (2-5 cards per note)
+- Proper Firestore structure with timestamps
+- Random pinned/archived status
+- Created over past year (realistic distribution)
 
-- **Operation types:** All four AI operations
-- **Success and failure cases:** ~90% success rate
-- **Performance metrics:** Realistic execution times
-- **Token consumption:** Matching transaction history
+**3. Transaction History (3-10 per user):**
 
-**5. System Configuration:**
+Each user has transaction history showing:
 
-- Default AI settings (Gemini Flash model)
-- Token costs (as per MASTERPLAN)
-- Feature flags (all enabled)
-- File upload limits (10MB)
-- Rate limits
+- **Initial Grant:** 1,000 tokens (welcome bonus)
+- **Token Deductions:** For AI operations (summarize, autoTag, flashcards, ragQuery)
+- **Refill Grants:** When balance goes negative (100-500 tokens)
+- **Proper Accounting:** `balanceBefore` and `balanceAfter` tracked
+- **Metadata:** Operation type, timestamp, description, granter (for grants)
 
-#### scripts/seed-emulator.ts
+Token costs used in seed:
+
+```typescript
+const TOKEN_COSTS = {
+  summarize: 10, // 10 tokens per summary
+  autoTag: 5, // 5 tokens per auto-tag
+  flashcards: 15, // 15 tokens per flashcard set
+  ragQuery: 20, // 20 tokens per RAG query
+};
+```
+
+**4. System Configuration:**
+
+Single system config document (`config/system`) with:
+
+```typescript
+{
+  ai: {
+    model: "gemini-1.5-flash",
+    maxTokensPerRequest: 2048,
+    temperature: 0.7,
+    systemPrompts: { /* ... */ }
+  },
+  tokens: {
+    initialGrant: {
+      production: 500,
+      development: 1000,
+      staging: 1000,
+      local: 1000
+    },
+    costs: {
+      summarize: 10,
+      autoTag: 5,
+      flashcards: 15,
+      ragQuery: 20
+    },
+    maxPerOperation: 100
+  },
+  features: {
+    summarizeEnabled: true,
+    autoTagEnabled: true,
+    flashcardsEnabled: true,
+    ragQueryEnabled: true,
+    fileExtractionEnabled: true
+  },
+  fileUpload: {
+    maxSizeBytes: 10485760,  // 10MB
+    allowedTypes: ["application/pdf", "text/plain", "text/markdown"],
+    allowedExtensions: [".pdf", ".txt", ".md"]
+  },
+  rateLimits: {
+    aiRequestsPerHour: 60,
+    fileExtractionsPerDay: 20
+  }
+}
+```
+
+#### Seed Script Architecture
 
 ```typescript
 // scripts/seed-emulator.ts
@@ -1117,375 +1338,253 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { faker } from "@faker-js/faker";
 
-// Initialize Firebase Admin SDK for emulator
-process.env.FIRESTORE_EMULATOR_HOST = "localhost:8080";
+// Emulator configuration
+process.env.FIRESTORE_EMULATOR_HOST = "localhost:8081";
 process.env.FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099";
 
 const app = initializeApp({ projectId: "demo-sentient-archive" });
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Seed configuration
-const SEED_CONFIG = {
-  adminUsers: 2,
-  clientUsers: 8,
-  notesPerUser: { min: 5, max: 12 },
-  transactionsPerUser: { min: 10, max: 30 },
-  aiRequestsPerUser: { min: 8, max: 20 },
-};
-
-// Token costs (matching MASTERPLAN)
-const TOKEN_COSTS = {
-  summarize: 2,
-  autoTag: 1,
-  flashcards: 3,
-  ragQuery: 4,
-};
-
-async function seedUsers() {
-  console.log("🌱 Seeding users...");
-
-  const users = [];
-
-  // Create admin users
-  for (let i = 1; i <= SEED_CONFIG.adminUsers; i++) {
-    const email = i === 1 ? "admin@sentient.dev" : "superadmin@sentient.dev";
-    const password = i === 1 ? "Admin123!" : "Super123!";
-
-    const userRecord = await auth.createUser({
-      email,
-      password,
-      displayName: `Admin User ${i}`,
-      emailVerified: true,
-    });
-
-    const userData = {
-      uid: userRecord.uid,
-      email,
-      displayName: `Admin User ${i}`,
-      photoURL: faker.image.avatar(),
-      role: "admin",
-      isActive: true,
-      tokenBalance: faker.number.int({ min: 500, max: 1000 }),
-      totalTokensGranted: faker.number.int({ min: 1000, max: 2000 }),
-      totalTokensSpent: faker.number.int({ min: 100, max: 500 }),
-      createdAt: Timestamp.fromDate(faker.date.past({ years: 1 })),
-      lastLoginAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-      preferences: {
-        language: "en",
-        theme: "dark",
-        notificationsEnabled: true,
-      },
-    };
-
-    await db.collection("users").doc(userRecord.uid).set(userData);
-    users.push({ ...userData, password });
-    console.log(`  ✅ Created admin: ${email}`);
-  }
-
-  // Create client users
-  for (let i = 1; i <= SEED_CONFIG.clientUsers; i++) {
-    const email = `user${i}@sentient.dev`;
-    const password = "User123!";
-
-    const userRecord = await auth.createUser({
-      email,
-      password,
-      displayName: faker.person.fullName(),
-      emailVerified: true,
-    });
-
-    const userData = {
-      uid: userRecord.uid,
-      email,
-      displayName: faker.person.fullName(),
-      photoURL: faker.image.avatar(),
-      role: "client",
-      isActive: i !== 8, // Last user is inactive
-      tokenBalance: faker.number.int({ min: 0, max: 100 }),
-      totalTokensGranted: faker.number.int({ min: 50, max: 200 }),
-      totalTokensSpent: faker.number.int({ min: 10, max: 150 }),
-      createdAt: Timestamp.fromDate(faker.date.past({ years: 0.5 })),
-      lastLoginAt: Timestamp.fromDate(faker.date.recent({ days: 7 })),
-      updatedAt: Timestamp.now(),
-      preferences: {
-        language: faker.helpers.arrayElement(["en", "es"]),
-        theme: faker.helpers.arrayElement(["light", "dark"]),
-        notificationsEnabled: faker.datatype.boolean(),
-      },
-    };
-
-    await db.collection("users").doc(userRecord.uid).set(userData);
-    users.push({ ...userData, password });
-    console.log(`  ✅ Created client: ${email}`);
-  }
-
-  return users;
-}
-
-async function seedNotes(users: any[]) {
-  console.log("📝 Seeding notes...");
-
-  const clientUsers = users.filter((u) => u.role === "client");
-
-  for (const user of clientUsers) {
-    const noteCount = faker.number.int(SEED_CONFIG.notesPerUser);
-
-    for (let i = 0; i < noteCount; i++) {
-      const isFileExtracted = faker.datatype.boolean();
-      const hasAIContent = faker.datatype.boolean({ probability: 0.6 });
-
-      const noteData = {
-        id: faker.string.uuid(),
-        userId: user.uid,
-        title: faker.lorem.sentence({ min: 3, max: 8 }),
-        content: faker.lorem.paragraphs({ min: 2, max: 10 }),
-        excerpt: faker.lorem.sentence({ min: 10, max: 20 }),
-        folderId: faker.helpers.arrayElement([
-          null,
-          `folder-${faker.number.int({ min: 1, max: 5 })}`,
-        ]),
-        tags: faker.helpers.arrayElements(
-          ["research", "personal", "work", "study", "ideas"],
-          { min: 0, max: 3 },
-        ),
-        aiTags: hasAIContent
-          ? faker.helpers.arrayElements(["ai-generated", "summary", "important"], {
-              min: 0,
-              max: 2,
-            })
-          : [],
-        summary: hasAIContent ? faker.lorem.paragraph() : null,
-        flashcards: hasAIContent
-          ? [
-              { front: faker.lorem.sentence(), back: faker.lorem.sentence() },
-              { front: faker.lorem.sentence(), back: faker.lorem.sentence() },
-            ]
-          : null,
-        createdAt: Timestamp.fromDate(faker.date.past({ years: 0.3 })),
-        updatedAt: Timestamp.fromDate(faker.date.recent({ days: 30 })),
-        viewedAt: Timestamp.fromDate(faker.date.recent({ days: 7 })),
-        isPinned: faker.datatype.boolean({ probability: 0.1 }),
-        isArchived: faker.datatype.boolean({ probability: 0.05 }),
-        sourceFile: isFileExtracted
-          ? {
-              name: faker.system.fileName(),
-              type: faker.helpers.arrayElement(["pdf", "txt", "md"]),
-              size: faker.number.int({ min: 1024, max: 1024 * 1024 * 5 }),
-              extractedAt: Timestamp.fromDate(faker.date.past({ years: 0.3 })),
-            }
-          : null,
-      };
-
-      await db
-        .collection("users")
-        .doc(user.uid)
-        .collection("notes")
-        .doc(noteData.id)
-        .set(noteData);
-    }
-
-    console.log(`  ✅ Created ${noteCount} notes for ${user.email}`);
-  }
-}
-
-async function seedTransactions(users: any[]) {
-  console.log("💰 Seeding transactions...");
-
-  for (const user of users) {
-    const txCount = faker.number.int(SEED_CONFIG.transactionsPerUser);
-
-    for (let i = 0; i < txCount; i++) {
-      const isGrant = faker.datatype.boolean({ probability: 0.3 });
-      const operation = isGrant
-        ? "grant"
-        : faker.helpers.arrayElement([
-            "summarize",
-            "autoTag",
-            "flashcards",
-            "ragQuery",
-          ]);
-
-      const txData = {
-        id: faker.string.uuid(),
-        userId: user.uid,
-        type: isGrant ? "grant" : "deduction",
-        operation,
-        amount: isGrant
-          ? faker.number.int({ min: 10, max: 100 })
-          : TOKEN_COSTS[operation as keyof typeof TOKEN_COSTS],
-        balanceBefore: faker.number.int({ min: 0, max: 200 }),
-        balanceAfter: 0, // Will be calculated
-        metadata: isGrant
-          ? {
-              grantedBy: users.find((u) => u.role === "admin")?.uid,
-              reason: "Monthly grant",
-            }
-          : {
-              noteId: faker.string.uuid(),
-              aiModel: "gemini-1.5-flash",
-            },
-        createdAt: Timestamp.fromDate(faker.date.past({ years: 0.25 })),
-      };
-
-      txData.balanceAfter = isGrant
-        ? txData.balanceBefore + txData.amount
-        : txData.balanceBefore - txData.amount;
-
-      await db.collection("transactions").doc(txData.id).set(txData);
-    }
-
-    console.log(`  ✅ Created ${txCount} transactions for ${user.email}`);
-  }
-}
-
-async function seedSystemConfig() {
-  console.log("⚙️  Seeding system configuration...");
-
-  const config = {
-    ai: {
-      model: "gemini-1.5-flash-latest",
-      maxTokensPerRequest: 8192,
-      temperature: 0.7,
-      systemPrompts: {
-        summarize: "You are a helpful assistant that creates concise summaries.",
-        autoTag: "You are a helpful assistant that generates relevant tags.",
-        flashcards: "You are a helpful assistant that creates educational flashcards.",
-        ragQuery:
-          "You are a helpful assistant that answers questions based on provided context.",
-      },
-    },
-    tokens: {
-      initialGrant: {
-        production: 20,
-        development: 100,
-        staging: 50,
-        local: 1000,
-      },
-      costs: TOKEN_COSTS,
-      maxPerOperation: 10,
-    },
-    features: {
-      summarizeEnabled: true,
-      autoTagEnabled: true,
-      flashcardsEnabled: true,
-      ragQueryEnabled: true,
-      fileExtractionEnabled: true,
-    },
-    fileUpload: {
-      maxSizeBytes: 10 * 1024 * 1024,
-      allowedTypes: ["application/pdf", "text/plain", "text/markdown"],
-      allowedExtensions: [".pdf", ".txt", ".md"],
-    },
-    rateLimits: {
-      aiRequestsPerHour: 100,
-      fileExtractionsPerDay: 50,
-    },
-    lastUpdatedBy: "system",
-    lastUpdatedAt: Timestamp.now(),
-    version: 1,
-  };
-
-  await db.collection("system_config").doc("settings").set(config);
-  console.log("  ✅ System configuration created");
-}
-
+// Main execution flow
 async function main() {
-  console.log("🚀 Starting seed process...\n");
+  console.log("🚀 Starting Firebase Emulator Seed...");
 
-  try {
-    const users = await seedUsers();
-    await seedNotes(users);
-    await seedTransactions(users);
-    await seedSystemConfig();
+  await seedUsers(); // Create 10 users (2 admin + 8 client)
+  await seedNotes(); // Generate 60-100 realistic notes
+  await seedTransactions(); // Create token transaction history
+  await seedSystemConfig(); // Set up system configuration
 
-    console.log("\n✨ Seed completed successfully!\n");
-    console.log("📊 Summary:");
-    console.log(
-      `  - Users: ${users.length} (${SEED_CONFIG.adminUsers} admins, ${SEED_CONFIG.clientUsers} clients)`,
-    );
-    console.log(`  - Notes: ~${users.length * 8} notes`);
-    console.log(`  - Transactions: ~${users.length * 20} transactions`);
-    console.log(`  - System config: ✅`);
-    console.log("\n🔐 Login credentials:");
-    console.log("  Admin: admin@sentient.dev / Admin123!");
-    console.log("  User: user1@sentient.dev / User123!");
-    console.log("\n🌐 Access Emulator UI: http://localhost:4000\n");
-
-    process.exit(0);
-  } catch (error) {
-    console.error("❌ Seed failed:", error);
-    process.exit(1);
-  }
+  printSummary(); // Display credentials and statistics
 }
 
-main();
+void main();
 ```
 
-#### scripts/run-seed.sh
+**Helper Functions:**
+
+```typescript
+// Generate realistic note content from templates
+function generateNoteContent(template: NoteTemplate): {
+  title: string;
+  content: string;
+  tags: string[];
+} {
+  // Replaces placeholders with Faker data
+  // Returns fully populated note content
+}
+
+// Random integer helper
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+```
+
+#### Seed Script Wrapper (scripts/run-seed.sh)
+
+The bash wrapper script ensures emulators are healthy before seeding:
 
 ```bash
-#!/bin/bash
-
+#!/usr/bin/env bash
 # scripts/run-seed.sh
-set -e
 
-echo "🔍 Checking if Firebase emulators are running..."
-
-# Check if emulator UI is accessible
-if ! curl -s http://localhost:4000 > /dev/null; then
-  echo "❌ Firebase emulators are not running!"
-  echo "   Please start them with: docker compose up -d"
-  exit 1
-fi
-
-echo "✅ Emulators are running"
-echo ""
-
-# Wait a bit for emulators to be fully ready
-echo "⏳ Waiting for emulators to be ready..."
-sleep 5
-
-# Run seed script
-echo "🌱 Running seed script..."
-npx ts-node scripts/seed-emulator.ts
-
-echo ""
-echo "✨ Done!"
-```
-
-#### package.json Scripts
-
-Add these scripts to your `package.json`:
-
-```json
-{
-  "scripts": {
-    "seed": "ts-node scripts/seed-emulator.ts",
-    "seed:fresh": "docker compose down -v && docker compose up -d && sleep 10 && npm run seed",
-    "emulators:start": "docker compose up -d",
-    "emulators:stop": "docker compose down",
-    "emulators:logs": "docker compose logs -f",
-    "emulators:reset": "docker compose down -v && docker compose up -d"
-  }
+# 1. Check if Emulator UI is accessible
+check_emulator() {
+  curl -s -o /dev/null -w "%{http_code}" "$EMULATOR_UI_URL"
 }
+
+# 2. Wait for all emulators to be ready
+wait_for_emulators() {
+  # Checks: Emulator UI (4000), Firestore (8081), Auth (9099)
+  # Max wait: 60 seconds with 2-second polling
+}
+
+# 3. Set environment and run seed script
+export FIRESTORE_EMULATOR_HOST="localhost:8081"
+export FIREBASE_AUTH_EMULATOR_HOST="localhost:9099"
+
+npx tsx scripts/seed-emulator.ts
 ```
 
-#### Usage
+#### Seed Output Example
+
+```text
+==========================================
+  Firebase Emulator Seed Script
+==========================================
+
+[INFO] Checking if emulators are running...
+[INFO] Waiting for Firebase Emulators to be ready...
+[INFO] All emulators are ready!
+
+🚀 Starting Firebase Emulator Seed...
+   Firestore: localhost:8081
+   Auth: localhost:9099
+
+📝 Creating users...
+  ✓ Created admin: admin1@sentientarchive.local
+  ✓ Created admin: admin2@sentientarchive.local
+  ✓ Created client: alexandrea.predovic@example.com
+  ✓ Created client: clifford.turcotte@example.com
+  [... 6 more clients ...]
+
+📚 Creating notes...
+  ✓ Created 9 notes for alexandrea.predovic@example.com
+  ✓ Created 9 notes for clifford.turcotte@example.com
+  [... more notes ...]
+  Total notes created: 66
+
+💰 Creating transactions...
+  ✓ Created 10 transactions for alexandrea.predovic@example.com
+  [... more transactions ...]
+
+⚙️ Creating system configuration...
+  ✓ Created system configuration
+
+============================================================
+🎉 SEED COMPLETE!
+============================================================
+
+📋 TEST CREDENTIALS:
+🔐 ADMIN ACCOUNTS:
+  Email:    admin1@sentientarchive.local
+  Password: Admin123!
+  UID:      uY0Sp5G4aOT2cokrtcHoDxX29y98
+
+👤 CLIENT ACCOUNTS:
+  Alexandrea Predovic
+    Email:    alexandrea.predovic@example.com
+    Password: Client123!
+  [... more clients ...]
+
+📊 SUMMARY:
+  Total Users:  10
+  - Admins:     2
+  - Clients:    8
+
+🌐 EMULATOR URLS:
+  Emulator UI:  http://localhost:4000
+  Auth:         http://localhost:9099
+  Firestore:    http://localhost:8081
+  Functions:    http://localhost:5001
+  Storage:      http://localhost:9199
+============================================================
+```
+
+#### Persistent Data Management
+
+**Automatic Export/Import:**
+
+The Docker Compose setup uses `--import` and `--export-on-exit` flags to preserve data:
 
 ```bash
-# Start fresh with seeded data
-npm run seed:fresh
-
-# Seed existing emulators
+# First run: Seed creates data
 npm run seed
 
-# Reset emulators (clears all data)
+# Stop emulators (exports data)
+docker compose stop
+# → Data saved to ./firebase/seed-data/
+
+# Restart (imports data)
+docker compose up
+# → Logs show: "✓ emulators: Importing data from ./seed-data"
+```
+
+**Data Location:**
+
+```text
+firebase/seed-data/
+├── auth_export/
+│   └── accounts.json           # User accounts and custom claims
+├── firestore_export/
+│   └── all_namespaces/
+│       └── all_kinds/
+│           └── all_namespaces_all_kinds.export_metadata
+└── firebase-export-metadata.json
+```
+
+**Seed Management Commands:**
+
+```bash
+# Seed with existing data intact
+npm run seed
+
+# Clear all data and re-seed from scratch
+npm run seed:fresh
+
+# Clear data but keep container running
 npm run emulators:reset
+
+# Export current emulator state manually
+npm run emulators:export
 
 # View emulator logs
 npm run emulators:logs
+```
+
+#### Testing with Seeded Data
+
+**1. Get a Test User Token:**
+
+```bash
+# Use Firebase Auth Emulator REST API
+curl -X POST "http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin1@sentientarchive.local",
+    "password": "Admin123!",
+    "returnSecureToken": true
+  }'
+
+# Response includes idToken
+```
+
+**2. Test API Endpoints:**
+
+```bash
+# Set token variable
+export TOKEN="<idToken_from_above>"
+
+# Check token balance
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:5001/demo-sentient-archive/us-central1/api/v1/tokens/balance
+
+# Get user's notes
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:5001/demo-sentient-archive/us-central1/api/v1/notes
+
+# Test AI summarization (deducts tokens)
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"noteId": "<note_id>", "maxLength": 100}' \
+  http://localhost:5001/demo-sentient-archive/us-central1/api/v1/ai/summarize
+```
+
+**3. View Data in Emulator UI:**
+
+```bash
+# Open Emulator UI
+open http://localhost:4000
+
+# Navigate to:
+# - Authentication: View all seeded users
+# - Firestore: Browse collections (users, notes, transactions, config)
+# - Functions: View deployed functions and logs
+```
+
+#### Seed Script Dependencies
+
+```json
+{
+  "dependencies": {
+    "firebase-admin": "^13.0.2"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.3.0",
+    "tsx": "^4.21.0"
+  }
+}
 ```
 
 ### 10.6 Pull Request Testing Strategy
@@ -1808,10 +1907,14 @@ See Section 10.6 for detailed PR testing strategy.
 
 ### Phase 2: Local Development Environment (Week 1)
 
-- [ ] Create Docker Compose for Firebase Emulators
-- [ ] Configure emulators (Auth, Firestore, Functions)
-- [ ] Create seed data script
-- [ ] Test local development workflow
+- [x] Create Docker Compose for Firebase Emulators
+- [x] Configure emulators (Auth, Firestore, Functions, Storage)
+- [x] Create seed data script with realistic test data
+- [x] Test local development workflow
+- [x] Configure proper emulator hosts (0.0.0.0) for container access
+- [x] Add storage emulator configuration
+- [x] Create comprehensive seed script with 10 users, 50-100 notes, transactions
+- [x] Add seed helper script with emulator health checks
 
 ### Phase 3: Core Middleware & Auth (Week 2)
 

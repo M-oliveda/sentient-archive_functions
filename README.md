@@ -614,7 +614,82 @@ git flow feature finish file-extraction
 :lock: Add file size validation middleware
 ```
 
-**2. Test with emulators:**
+**2. Seed test data:**
+
+The project includes a comprehensive seed script that populates the Firebase emulators with
+realistic test data for development and testing.
+
+```bash
+# Start emulators (if not already running)
+npm run emulators:start
+
+# Wait for emulators to be ready (about 10-15 seconds)
+# Then seed test data
+npm run seed
+
+# Or use the script directly
+./scripts/run-seed.sh
+```
+
+**What gets seeded:**
+
+- **2 Admin accounts** with elevated privileges
+- **8 Client accounts** with standard user permissions
+- **60-100 Notes** distributed across client users with realistic content
+- **Transaction history** showing token grants and deductions
+- **System configuration** with AI model settings and token costs
+
+**Test Credentials (after seeding):**
+
+```text
+Admin Accounts:
+  Email:    admin1@sentientarchive.local
+  Password: Admin123!
+
+  Email:    admin2@sentientarchive.local
+  Password: Admin123!
+
+Client Accounts:
+  All client accounts use password: Client123!
+  Emails are displayed in the seed output
+```
+
+**Seed Script Features:**
+
+- ✅ Waits for emulators to be healthy before seeding
+- ✅ Generates realistic data using Faker.js
+- ✅ Creates proper Firestore structure with timestamps
+- ✅ Sets up token economy with transaction history
+- ✅ Displays credentials summary after completion
+- ✅ Handles errors gracefully
+
+**Persistent Data:**
+
+When you stop the emulators gracefully, data is automatically exported:
+
+```bash
+# Stop emulators (triggers --export-on-exit)
+npm run emulators:stop
+
+# Or with Docker Compose
+docker compose stop
+```
+
+The seeded data is saved to `./firebase/seed-data/` and will be automatically imported on
+the next startup, so you don't need to re-seed every time.
+
+**Reset and Re-seed:**
+
+```bash
+# Clear all data and seed fresh
+npm run seed:fresh
+
+# Or manually:
+npm run emulators:reset  # Clears data and restarts
+npm run seed             # Seeds fresh data
+```
+
+**3. Test with emulators:**
 
 ```bash
 # Terminal 1: Start emulators
@@ -629,7 +704,7 @@ npm run test:watch
 # Make changes, tests run automatically
 ```
 
-**3. Before committing:**
+**4. Before committing:**
 
 ```bash
 # Husky pre-commit hook will automatically run:
@@ -697,14 +772,20 @@ reload support.
 # Start all services
 docker compose up -d
 
-# View logs
-docker compose logs -f
+# View logs (follow mode)
+docker compose logs -f firebase-emulators
 
 # Stop all services
 docker compose down
 
 # Restart services
-docker compose restart
+docker compose restart firebase-emulators
+
+# Rebuild container after Dockerfile changes
+docker compose up -d --build
+
+# Complete rebuild (no cache)
+npm run emulators:rebuild
 
 # Reset data (fresh start)
 npm run emulators:reset

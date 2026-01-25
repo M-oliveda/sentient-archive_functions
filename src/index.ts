@@ -7,6 +7,9 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
+import express, { Request, Response } from "express";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { logInfo } from "./utils/logger.js";
 
 // Set global options for all functions
 setGlobalOptions({
@@ -17,23 +20,74 @@ setGlobalOptions({
 });
 
 /**
+ * Create Express app
+ */
+const app = express();
+
+/**
+ * Global Middleware
+ */
+
+// Parse JSON bodies
+app.use(express.json({ limit: "1mb" }));
+
+// Parse URL-encoded bodies
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Request logging
+app.use((req, _res, next) => {
+    logInfo("Incoming request", {
+        method: req.method,
+        path: req.path,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+    });
+    next();
+});
+
+/**
+ * Health check endpoint
+ */
+app.get("/health", (_req: Request, response: Response) => {
+    response.status(200).json({
+        success: true,
+        message: "SentientArchive API is healthy",
+        version: "1.0.0",
+        timestamp: new Date().toISOString(),
+    });
+});
+
+/**
+ * API Routes
+ * TODO: Add route handlers in future phases
+ */
+
+// v1 API routes will be mounted here
+// app.use('/v1/notes', notesRouter);
+// app.use('/v1/ai', aiRouter);
+// app.use('/v1/tokens', tokensRouter);
+// app.use('/v1/admin', adminRouter);
+
+/**
+ * Error Handling
+ */
+
+// 404 handler (must be after all routes)
+app.use(notFoundHandler);
+
+// Global error handler (must be last)
+app.use(errorHandler);
+
+/**
  * Main API endpoint
  *
  * Handles all HTTP requests to the SentientArchive API
- * Routes are defined in the routes directory
+ * Routes are defined in the Express app above
  */
 export const api = onRequest(
     {
         cors: true,
         invoker: "public",
     },
-    (_request, response) => {
-        // TODO: Implement routing logic
-        response.status(200).json({
-            success: true,
-            message: "SentientArchive API - Coming Soon",
-            version: "1.0.0",
-            timestamp: new Date().toISOString(),
-        });
-    },
+    app,
 );

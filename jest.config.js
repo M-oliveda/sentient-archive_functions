@@ -4,12 +4,8 @@ export default {
     testEnvironment: "node",
     extensionsToTreatAsEsm: [".ts"],
     moduleNameMapper: {
+        "^@/(.*)\.js$": "<rootDir>/src/$1",
         "^@/(.*)$": "<rootDir>/src/$1",
-        "^@/middleware/(.*)$": "<rootDir>/src/middleware/$1",
-        "^@/routes/(.*)$": "<rootDir>/src/routes/$1",
-        "^@/services/(.*)$": "<rootDir>/src/services/$1",
-        "^@/utils/(.*)$": "<rootDir>/src/utils/$1",
-        "^@/types/(.*)$": "<rootDir>/src/types/$1",
         "^(\\.{1,2}/.*)\\.js$": "$1",
     },
     transform: {

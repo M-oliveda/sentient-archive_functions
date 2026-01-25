@@ -1,4 +1,11 @@
 {
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "functions": [
     {
       "source": ".",
@@ -30,7 +37,16 @@
       "host": "0.0.0.0"
     },
     "firestore": {
-      "port": 8080,
+      "port": 8081,
+      "host": "0.0.0.0",
+      "websocketPort": 9150
+    },
+    "storage": {
+      "port": 9199,
+      "host": "0.0.0.0"
+    },
+    "eventarc": {
+      "port": 9299,
       "host": "0.0.0.0"
     },
     "ui": {
@@ -38,6 +54,9 @@
       "port": 4000,
       "host": "0.0.0.0"
     },
-    "singleProjectMode": true
+    "singleProjectMode": true,
+    "hub": {
+      "port": 4400
+    }
   }
 }

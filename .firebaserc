@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "demo-sentient-archive",
+    "local": "demo-sentient-archive",
+    "dev": "sentient-archive-dev",
+    "staging": "sentient-archive-staging",
+    "production": "sentient-archive-prod"
+  }
+}

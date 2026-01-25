@@ -1,0 +1,465 @@
+/**
+ * Validation Utility Tests
+ */
+
+import { describe, test, expect } from "@jest/globals";
+import { z } from "zod";
+import {
+    FileMetadataSchema,
+    SummarizeRequestSchema,
+    AutoTagRequestSchema,
+    FlashcardsRequestSchema,
+    RagQueryRequestSchema,
+    TokenMintRequestSchema,
+    AdminUserUpdateSchema,
+    SystemConfigUpdateSchema,
+    validateRequest,
+    safeValidateRequest,
+} from "@/utils/validation.js";
+
+describe("Validation Utility", () => {
+    describe("FileMetadataSchema", () => {
+        test("should validate valid PDF metadata", () => {
+            const data = {
+                filename: "document.pdf",
+                mimeType: "application/pdf",
+                size: 1024,
+            };
+
+            expect(() => FileMetadataSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate valid TXT metadata", () => {
+            const data = {
+                filename: "notes.txt",
+                mimeType: "text/plain",
+                size: 512,
+            };
+
+            expect(() => FileMetadataSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate valid Markdown metadata", () => {
+            const data = {
+                filename: "readme.md",
+                mimeType: "text/markdown",
+                size: 2048,
+            };
+
+            expect(() => FileMetadataSchema.parse(data)).not.toThrow();
+        });
+
+        test("should reject invalid MIME type", () => {
+            const data = {
+                filename: "image.jpg",
+                mimeType: "image/jpeg",
+                size: 1024,
+            };
+
+            expect(() => FileMetadataSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject file size exceeding 10MB", () => {
+            const data = {
+                filename: "large.pdf",
+                mimeType: "application/pdf",
+                size: 11 * 1024 * 1024,
+            };
+
+            expect(() => FileMetadataSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject empty filename", () => {
+            const data = {
+                filename: "",
+                mimeType: "application/pdf",
+                size: 1024,
+            };
+
+            expect(() => FileMetadataSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("SummarizeRequestSchema", () => {
+        test("should validate valid request", () => {
+            const data = {
+                noteId: "note123",
+                maxLength: 150,
+            };
+
+            expect(() => SummarizeRequestSchema.parse(data)).not.toThrow();
+        });
+
+        test("should use default maxLength", () => {
+            const data = { noteId: "note123" };
+            const result = SummarizeRequestSchema.parse(data);
+
+            expect(result.maxLength).toBe(200);
+        });
+
+        test("should reject maxLength below minimum", () => {
+            const data = {
+                noteId: "note123",
+                maxLength: 30,
+            };
+
+            expect(() => SummarizeRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject maxLength above maximum", () => {
+            const data = {
+                noteId: "note123",
+                maxLength: 600,
+            };
+
+            expect(() => SummarizeRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject empty noteId", () => {
+            const data = {
+                noteId: "",
+                maxLength: 150,
+            };
+
+            expect(() => SummarizeRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("AutoTagRequestSchema", () => {
+        test("should validate valid request", () => {
+            const data = {
+                noteId: "note123",
+                maxTags: 7,
+            };
+
+            expect(() => AutoTagRequestSchema.parse(data)).not.toThrow();
+        });
+
+        test("should use default maxTags", () => {
+            const data = { noteId: "note123" };
+            const result = AutoTagRequestSchema.parse(data);
+
+            expect(result.maxTags).toBe(5);
+        });
+
+        test("should reject maxTags below minimum", () => {
+            const data = {
+                noteId: "note123",
+                maxTags: 0,
+            };
+
+            expect(() => AutoTagRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject maxTags above maximum", () => {
+            const data = {
+                noteId: "note123",
+                maxTags: 15,
+            };
+
+            expect(() => AutoTagRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("FlashcardsRequestSchema", () => {
+        test("should validate valid request", () => {
+            const data = {
+                noteId: "note123",
+                count: 10,
+            };
+
+            expect(() => FlashcardsRequestSchema.parse(data)).not.toThrow();
+        });
+
+        test("should use default count", () => {
+            const data = { noteId: "note123" };
+            const result = FlashcardsRequestSchema.parse(data);
+
+            expect(result.count).toBe(5);
+        });
+
+        test("should reject count below minimum", () => {
+            const data = {
+                noteId: "note123",
+                count: 1,
+            };
+
+            expect(() => FlashcardsRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject count above maximum", () => {
+            const data = {
+                noteId: "note123",
+                count: 25,
+            };
+
+            expect(() => FlashcardsRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("RagQueryRequestSchema", () => {
+        test("should validate valid request", () => {
+            const data = {
+                query: "What is machine learning?",
+                maxResults: 8,
+            };
+
+            expect(() => RagQueryRequestSchema.parse(data)).not.toThrow();
+        });
+
+        test("should use default maxResults", () => {
+            const data = { query: "Test query" };
+            const result = RagQueryRequestSchema.parse(data);
+
+            expect(result.maxResults).toBe(5);
+        });
+
+        test("should reject query too short", () => {
+            const data = {
+                query: "ab",
+                maxResults: 5,
+            };
+
+            expect(() => RagQueryRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject query too long", () => {
+            const data = {
+                query: "a".repeat(501),
+                maxResults: 5,
+            };
+
+            expect(() => RagQueryRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject maxResults above maximum", () => {
+            const data = {
+                query: "Test query",
+                maxResults: 15,
+            };
+
+            expect(() => RagQueryRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("TokenMintRequestSchema", () => {
+        test("should validate valid request", () => {
+            const data = {
+                userId: "user123",
+                amount: 500,
+                reason: "Monthly grant",
+            };
+
+            expect(() => TokenMintRequestSchema.parse(data)).not.toThrow();
+        });
+
+        test("should reject negative amount", () => {
+            const data = {
+                userId: "user123",
+                amount: -100,
+                reason: "Test",
+            };
+
+            expect(() => TokenMintRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject amount exceeding maximum", () => {
+            const data = {
+                userId: "user123",
+                amount: 15000,
+                reason: "Too many tokens",
+            };
+
+            expect(() => TokenMintRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject short reason", () => {
+            const data = {
+                userId: "user123",
+                amount: 500,
+                reason: "ab",
+            };
+
+            expect(() => TokenMintRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject empty userId", () => {
+            const data = {
+                userId: "",
+                amount: 500,
+                reason: "Test reason",
+            };
+
+            expect(() => TokenMintRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("AdminUserUpdateSchema", () => {
+        test("should validate role update", () => {
+            const data = { role: "admin" };
+
+            expect(() => AdminUserUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate isActive update", () => {
+            const data = { isActive: false };
+
+            expect(() => AdminUserUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate tokenBalance update", () => {
+            const data = { tokenBalance: 1000 };
+
+            expect(() => AdminUserUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate multiple fields", () => {
+            const data = {
+                role: "client",
+                isActive: true,
+                tokenBalance: 500,
+            };
+
+            expect(() => AdminUserUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should reject invalid role", () => {
+            const data = { role: "superadmin" };
+
+            expect(() => AdminUserUpdateSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject negative tokenBalance", () => {
+            const data = { tokenBalance: -100 };
+
+            expect(() => AdminUserUpdateSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("SystemConfigUpdateSchema", () => {
+        test("should validate AI config update", () => {
+            const data = {
+                ai: {
+                    model: "gemini-1.5-flash",
+                    temperature: 0.7,
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate token costs update", () => {
+            const data = {
+                tokens: {
+                    costs: {
+                        summarize: 10,
+                        autoTag: 5,
+                    },
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate features update", () => {
+            const data = {
+                features: {
+                    summarizeEnabled: true,
+                    flashcardsEnabled: false,
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate rate limits update", () => {
+            const data = {
+                rateLimits: {
+                    aiRequestsPerHour: 100,
+                    fileExtractionsPerDay: 50,
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should reject temperature out of range", () => {
+            const data = {
+                ai: {
+                    temperature: 3.0,
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject negative token cost", () => {
+            const data = {
+                tokens: {
+                    costs: {
+                        summarize: -5,
+                    },
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("validateRequest", () => {
+        test("should return parsed data on valid input", () => {
+            const schema = z.object({
+                name: z.string(),
+                age: z.number(),
+            });
+
+            const data = { name: "John", age: 30 };
+            const result = validateRequest(schema, data);
+
+            expect(result).toEqual(data);
+        });
+
+        test("should throw ZodError on invalid input", () => {
+            const schema = z.object({
+                name: z.string(),
+                age: z.number(),
+            });
+
+            const data = { name: "John", age: "thirty" };
+
+            expect(() => validateRequest(schema, data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("safeValidateRequest", () => {
+        test("should return success result on valid input", () => {
+            const schema = z.object({
+                name: z.string(),
+                age: z.number(),
+            });
+
+            const data = { name: "John", age: 30 };
+            const result = safeValidateRequest(schema, data);
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data).toEqual(data);
+            }
+        });
+
+        test("should return error result on invalid input", () => {
+            const schema = z.object({
+                name: z.string(),
+                age: z.number(),
+            });
+
+            const data = { name: "John", age: "thirty" };
+            const result = safeValidateRequest(schema, data);
+
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toBeInstanceOf(z.ZodError);
+            }
+        });
+    });
+});

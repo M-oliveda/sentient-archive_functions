@@ -1927,12 +1927,12 @@ See Section 10.6 for detailed PR testing strategy.
 
 ### Phase 4: File Extraction System (Week 3)
 
-- [ ] Implement FileService
-- [ ] Create PDF extractor
-- [ ] Create TXT extractor
-- [ ] Create MD extractor
-- [ ] Implement POST /v1/notes/extract
-- [ ] Test file extraction
+- [x] Implement FileService
+- [x] Create PDF extractor
+- [x] Create TXT extractor
+- [x] Create MD extractor
+- [x] Implement POST /v1/notes/extract
+- [x] Test file extraction
 
 ### Phase 5: Token Economy System (Week 4)
 

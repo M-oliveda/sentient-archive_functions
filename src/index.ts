@@ -10,6 +10,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 import express, { Request, Response } from "express";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { logInfo } from "./utils/logger.js";
+import notesRouter from "./routes/notes.routes.js";
 
 // Set global options for all functions
 setGlobalOptions({
@@ -59,11 +60,11 @@ app.get("/health", (_req: Request, response: Response) => {
 
 /**
  * API Routes
- * TODO: Add route handlers in future phases
  */
 
-// v1 API routes will be mounted here
-// app.use('/v1/notes', notesRouter);
+// v1 API routes
+app.use("/v1/notes", notesRouter);
+// TODO: Add more route handlers in future phases
 // app.use('/v1/ai', aiRouter);
 // app.use('/v1/tokens', tokensRouter);
 // app.use('/v1/admin', adminRouter);

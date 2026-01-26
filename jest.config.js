@@ -32,6 +32,7 @@ export default {
         "!src/**/*.d.ts",
         "!src/index.ts",
         "!src/types/**",
+        "!src/routes/**",
     ],
     coverageDirectory: "coverage",
     coverageReporters: ["text", "lcov", "html"],

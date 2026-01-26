@@ -7,26 +7,7 @@
 
 import { logDebug, logError } from "@/utils/logger.js";
 import { AppError } from "@/middleware/errorHandler.js";
-
-/**
- * Markdown extraction options
- */
-export interface MdExtractionOptions {
-    /** Character encoding (default: utf-8) */
-    encoding?: BufferEncoding;
-}
-
-/**
- * Markdown extraction result
- */
-export interface MdExtractionResult {
-    text: string;
-    lineCount: number;
-    encoding: BufferEncoding;
-    hasTitle: boolean;
-    /** Extracted title from first heading (if present) */
-    extractedTitle?: string;
-}
+import { MdExtractionOptions, MdExtractionResult } from "@/types/file.js";
 
 /**
  * Extract text content from a Markdown file buffer

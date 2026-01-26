@@ -11,6 +11,7 @@ import {
     FlashcardsRequestSchema,
     RagQueryRequestSchema,
     TokenMintRequestSchema,
+    TokenHistoryQuerySchema,
     AdminUserUpdateSchema,
     SystemConfigUpdateSchema,
     validateRequest,
@@ -291,6 +292,74 @@ describe("Validation Utility", () => {
             };
 
             expect(() => TokenMintRequestSchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("TokenHistoryQuerySchema", () => {
+        test("should validate valid query with all options", () => {
+            const data = {
+                limit: "50",
+                offset: "10",
+                type: "grant",
+            };
+
+            const result = TokenHistoryQuerySchema.parse(data);
+
+            expect(result.limit).toBe(50);
+            expect(result.offset).toBe(10);
+            expect(result.type).toBe("grant");
+        });
+
+        test("should use default values when not provided", () => {
+            const data = {};
+            const result = TokenHistoryQuerySchema.parse(data);
+
+            expect(result.limit).toBe(20);
+            expect(result.offset).toBe(0);
+            expect(result.type).toBeUndefined();
+        });
+
+        test("should coerce string numbers to numbers", () => {
+            const data = {
+                limit: "25",
+                offset: "5",
+            };
+
+            const result = TokenHistoryQuerySchema.parse(data);
+
+            expect(result.limit).toBe(25);
+            expect(result.offset).toBe(5);
+        });
+
+        test("should accept deduction type", () => {
+            const data = { type: "deduction" };
+            const result = TokenHistoryQuerySchema.parse(data);
+
+            expect(result.type).toBe("deduction");
+        });
+
+        test("should reject limit below minimum", () => {
+            const data = { limit: "0" };
+
+            expect(() => TokenHistoryQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject limit above maximum", () => {
+            const data = { limit: "150" };
+
+            expect(() => TokenHistoryQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject negative offset", () => {
+            const data = { offset: "-5" };
+
+            expect(() => TokenHistoryQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject invalid type", () => {
+            const data = { type: "invalid" };
+
+            expect(() => TokenHistoryQuerySchema.parse(data)).toThrow(z.ZodError);
         });
     });
 

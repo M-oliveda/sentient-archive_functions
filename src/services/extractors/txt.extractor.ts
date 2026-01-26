@@ -6,23 +6,7 @@
 
 import { logDebug, logError } from "@/utils/logger.js";
 import { AppError } from "@/middleware/errorHandler.js";
-
-/**
- * TXT extraction options
- */
-export interface TxtExtractionOptions {
-    /** Character encoding (default: utf-8) */
-    encoding?: BufferEncoding;
-}
-
-/**
- * TXT extraction result
- */
-export interface TxtExtractionResult {
-    text: string;
-    lineCount: number;
-    encoding: BufferEncoding;
-}
+import { TxtExtractionOptions, TxtExtractionResult } from "@/types/file.js";
 
 /**
  * Extract text content from a plain text file buffer

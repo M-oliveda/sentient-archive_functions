@@ -140,6 +140,26 @@ export const TokenMintRequestSchema = z
 
 export type TokenMintRequest = z.infer<typeof TokenMintRequestSchema>;
 
+// Token History Query (for pagination and filtering)
+export const TokenHistoryQuerySchema = z.object({
+    limit: z.coerce
+        .number()
+        .int()
+        .min(1, "Limit must be at least 1")
+        .max(100, "Limit cannot exceed 100")
+        .optional()
+        .default(20),
+    offset: z.coerce
+        .number()
+        .int()
+        .min(0, "Offset cannot be negative")
+        .optional()
+        .default(0),
+    type: z.enum(["grant", "deduction"]).optional(),
+});
+
+export type TokenHistoryQuery = z.infer<typeof TokenHistoryQuerySchema>;
+
 /**
  * Admin Schemas
  */

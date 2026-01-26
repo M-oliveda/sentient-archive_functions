@@ -7,28 +7,7 @@
 import pdfParse from "pdf-parse";
 import { logDebug, logError } from "@/utils/logger.js";
 import { AppError } from "@/middleware/errorHandler.js";
-
-/**
- * PDF extraction options
- */
-export interface PdfExtractionOptions {
-    /** Maximum number of pages to extract (default: all) */
-    maxPages?: number;
-}
-
-/**
- * PDF extraction result
- */
-export interface PdfExtractionResult {
-    text: string;
-    pageCount: number;
-    info?: {
-        title?: string;
-        author?: string;
-        subject?: string;
-        creator?: string;
-    };
-}
+import { PdfExtractionOptions, PdfExtractionResult } from "@/types/file.js";
 
 /**
  * Extract text content from a PDF buffer

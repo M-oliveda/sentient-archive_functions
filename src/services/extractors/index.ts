@@ -1,21 +1,20 @@
 /**
  * File Extractors Index
  *
- * Re-exports all file content extractors
+ * Re-exports all file content extractors and their types
  */
 
-export {
-    extractPdf,
-    type PdfExtractionOptions,
-    type PdfExtractionResult,
-} from "./pdf.extractor.js";
-export {
-    extractTxt,
-    type TxtExtractionOptions,
-    type TxtExtractionResult,
-} from "./txt.extractor.js";
-export {
-    extractMd,
-    type MdExtractionOptions,
-    type MdExtractionResult,
-} from "./md.extractor.js";
+// Export extractor functions
+export { extractPdf } from "./pdf.extractor.js";
+export { extractTxt } from "./txt.extractor.js";
+export { extractMd } from "./md.extractor.js";
+
+// Re-export types from centralized types folder
+export type {
+    PdfExtractionOptions,
+    PdfExtractionResult,
+    TxtExtractionOptions,
+    TxtExtractionResult,
+    MdExtractionOptions,
+    MdExtractionResult,
+} from "@/types/file.js";

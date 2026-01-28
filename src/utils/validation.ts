@@ -221,6 +221,49 @@ export const SystemConfigUpdateSchema = z.object({
 
 export type SystemConfigUpdate = z.infer<typeof SystemConfigUpdateSchema>;
 
+// Admin Users Query (for listing users)
+export const AdminUsersQuerySchema = z.object({
+    limit: z.coerce
+        .number()
+        .int()
+        .min(1, "Limit must be at least 1")
+        .max(100, "Limit cannot exceed 100")
+        .optional()
+        .default(20),
+    offset: z.coerce
+        .number()
+        .int()
+        .min(0, "Offset cannot be negative")
+        .optional()
+        .default(0),
+    role: z.enum(["client", "admin"]).optional(),
+    isActive: z
+        .union([z.boolean(), z.string().transform((val) => val === "true")])
+        .optional(),
+    search: z.string().max(100, "Search query too long").optional(),
+    sortBy: z
+        .enum(["createdAt", "lastLoginAt", "tokenBalance"])
+        .optional()
+        .default("createdAt"),
+    sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+
+export type AdminUsersQuery = z.infer<typeof AdminUsersQuerySchema>;
+
+// Admin Analytics Query (for filtering analytics)
+export const AdminAnalyticsQuerySchema = z.object({
+    startDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)")
+        .optional(),
+    endDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)")
+        .optional(),
+});
+
+export type AdminAnalyticsQuery = z.infer<typeof AdminAnalyticsQuerySchema>;
+
 /**
  * Response Schemas
  */

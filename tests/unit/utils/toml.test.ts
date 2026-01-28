@@ -3,7 +3,6 @@
  */
 
 import { describe, test, expect, jest, beforeEach, afterEach } from "@jest/globals";
-import { join } from "path";
 
 // Mock fs module
 const mockReadFileSync = jest.fn<(path: string, encoding: string) => string>();
@@ -20,8 +19,14 @@ jest.unstable_mockModule("@/utils/logger.js", () => ({
 }));
 
 // Import after mocks
-const { loadToml, loadPromptsConfig, getPromptInstructions, getDefaultAIConfig, clearConfigCache, reloadConfig } =
-    await import("@/utils/toml.js");
+const {
+    loadToml,
+    loadPromptsConfig,
+    getPromptInstructions,
+    getDefaultAIConfig,
+    clearConfigCache,
+    reloadConfig,
+} = await import("@/utils/toml.js");
 
 // Sample TOML content
 const SAMPLE_TOML = `
@@ -104,7 +109,9 @@ describe("TOML Utility", () => {
         test("should throw error for invalid TOML syntax", () => {
             mockReadFileSync.mockReturnValue("invalid toml [[[");
 
-            expect(() => loadToml("invalid.toml")).toThrow("Failed to load TOML config invalid.toml");
+            expect(() => loadToml("invalid.toml")).toThrow(
+                "Failed to load TOML config invalid.toml",
+            );
         });
     });
 
@@ -115,7 +122,9 @@ describe("TOML Utility", () => {
             const config = loadPromptsConfig();
 
             expect(config.metadata.version).toBe("1.0.0");
-            expect(config.prompts.summarize.instructions).toContain("summarizes text content");
+            expect(config.prompts.summarize.instructions).toContain(
+                "summarizes text content",
+            );
             expect(config.defaults.temperature).toBe(1.0);
         });
     });
@@ -192,7 +201,9 @@ describe("TOML Utility", () => {
             expect(mockReadFileSync).toHaveBeenCalledTimes(1);
 
             // Reload
-            const result = reloadConfig<{ metadata: { version: string } }>("prompts.toml");
+            const result = reloadConfig<{ metadata: { version: string } }>(
+                "prompts.toml",
+            );
 
             expect(mockReadFileSync).toHaveBeenCalledTimes(2);
             expect(result.metadata.version).toBe("1.0.0");
@@ -205,11 +216,16 @@ describe("TOML Utility", () => {
             expect(first.metadata.version).toBe("1.0.0");
 
             // Update mock to return different version
-            const updatedToml = SAMPLE_TOML.replace('version = "1.0.0"', 'version = "2.0.0"');
+            const updatedToml = SAMPLE_TOML.replace(
+                'version = "1.0.0"',
+                'version = "2.0.0"',
+            );
             mockReadFileSync.mockReturnValue(updatedToml);
 
             // Reload
-            const second = reloadConfig<{ metadata: { version: string } }>("prompts.toml");
+            const second = reloadConfig<{ metadata: { version: string } }>(
+                "prompts.toml",
+            );
             expect(second.metadata.version).toBe("2.0.0");
 
             // Subsequent load should use new cached value

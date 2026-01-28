@@ -13,6 +13,7 @@ import { logInfo } from "./utils/logger.js";
 import notesRouter from "./routes/notes.routes.js";
 import tokensRouter from "./routes/tokens.routes.js";
 import aiRouter from "./routes/ai.routes.js";
+import adminRouter from "./routes/admin.routes.js";
 
 // Set global options for all functions
 setGlobalOptions({
@@ -68,8 +69,7 @@ app.get("/health", (_req: Request, response: Response) => {
 app.use("/v1/notes", notesRouter);
 app.use("/v1/tokens", tokensRouter);
 app.use("/v1/ai", aiRouter);
-// TODO: Add more route handlers in future phases
-// app.use('/v1/admin', adminRouter);
+app.use("/v1/admin", adminRouter);
 
 /**
  * Error Handling

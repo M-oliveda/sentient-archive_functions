@@ -662,7 +662,7 @@ describe("AI Service", () => {
 
             expect(config.model).toBe("gemini-flash-lite-latest");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(0.7);
+            expect(config.temperature).toBe(1);
             expect(config.systemPrompts.summarize).toContain("summarizes text content");
         });
 
@@ -681,7 +681,7 @@ describe("AI Service", () => {
 
             expect(config.model).toBe("custom-model");
             expect(config.maxTokensPerRequest).toBe(2048); // default
-            expect(config.temperature).toBe(0.7); // default
+            expect(config.temperature).toBe(1); // default
         });
 
         test("should use defaults when ai config exists but fields are undefined", async () => {
@@ -706,7 +706,7 @@ describe("AI Service", () => {
 
             expect(config.model).toBe("gemini-flash-lite-latest");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(0.7);
+            expect(config.temperature).toBe(1);
             expect(config.systemPrompts.summarize).toContain("summarizes text content");
             expect(config.systemPrompts.autoTag).toContain("generates relevant tags");
             expect(config.systemPrompts.flashcards).toContain("educational flashcards");
@@ -725,7 +725,7 @@ describe("AI Service", () => {
 
             expect(config.model).toBe("gemini-flash-lite-latest");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(0.7);
+            expect(config.temperature).toBe(1);
         });
     });
 

@@ -9,7 +9,8 @@
   },
   "scripts": {
     "dev": "tsc --watch",
-    "build": "tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
+    "build": "tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json && npm run copy:config",
+    "copy:config": "mkdir -p lib/config && cp -r src/config/*.toml lib/config/",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
@@ -20,8 +21,13 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/unit",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:unit:coverage": "NODE_OPTIONS=--experimental-vm-modules jest tests/unit --coverage",
+    "test:ci": "firebase emulators:exec --only firestore,auth 'npm run test' --project demo-sentient-archive",
+    "test:ci:unit": "npm run test:unit:coverage",
     "prepare": "[ -d .git ] && husky || echo 'Skipping husky in non-git environment'",
     "seed": "./scripts/run-seed.sh",
     "seed:fresh": "npm run emulators:reset && npm run seed",
@@ -50,6 +56,7 @@
     "firebase-admin": "^13.0.2",
     "firebase-functions": "^7.0.3",
     "pdf-parse": "^1.1.1",
+    "smol-toml": "^1.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

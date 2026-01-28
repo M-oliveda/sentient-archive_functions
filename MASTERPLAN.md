@@ -241,6 +241,9 @@ sentient-archive_functions/
 ├── src/
 │   ├── index.ts                      # Entry point & function exports
 │   │
+│   ├── config/
+│   │   └── prompts.toml              # AI system prompts (TOML format)
+│   │
 │   ├── middleware/
 │   │   ├── auth.ts                   # Auth middleware
 │   │   ├── admin.ts                  # Admin middleware
@@ -269,6 +272,7 @@ sentient-archive_functions/
 │   ├── utils/
 │   │   ├── gemini.ts                 # Gemini client
 │   │   ├── firestore.ts              # Firestore helpers
+│   │   ├── toml.ts                   # TOML configuration loader
 │   │   ├── validation.ts             # Zod schemas
 │   │   ├── logger.ts                 # Logging utility
 │   │   └── fileValidation.ts         # File type/size validation
@@ -346,15 +350,16 @@ sentient-archive_functions/
 
 ### 4.2 Backend Libraries
 
-| Category            | Technology            | Version | Purpose                     |
-| :------------------ | :-------------------- | :------ | :-------------------------- |
-| **Validation**      | Zod                   | 3.x     | Request/response validation |
-| **AI SDK**          | @google/generative-ai | Latest  | Gemini API client           |
-| **Firebase Admin**  | firebase-admin        | Latest  | Server-side Firebase SDK    |
-| **File Processing** | pdf-parse             | Latest  | PDF text extraction         |
-| **File Processing** | busboy                | Latest  | Multipart form parsing      |
-| **Date Utils**      | date-fns              | 4.x     | Date manipulation           |
-| **HTTP Framework**  | express               | 4.x     | HTTP routing (optional)     |
+| Category            | Technology            | Version | Purpose                          |
+| :------------------ | :-------------------- | :------ | :------------------------------- |
+| **Validation**      | Zod                   | 3.x     | Request/response validation      |
+| **AI SDK**          | @google/generative-ai | Latest  | Gemini API client                |
+| **Firebase Admin**  | firebase-admin        | Latest  | Server-side Firebase SDK         |
+| **File Processing** | pdf-parse             | Latest  | PDF text extraction              |
+| **File Processing** | busboy                | Latest  | Multipart form parsing           |
+| **Configuration**   | smol-toml             | Latest  | TOML parser (~10% token savings) |
+| **Date Utils**      | date-fns              | 4.x     | Date manipulation                |
+| **HTTP Framework**  | express               | 4.x     | HTTP routing (optional)          |
 
 ### 4.3 Development Tools
 
@@ -1951,9 +1956,14 @@ See Section 10.6 for detailed PR testing strategy.
 
 ### Phase 7: AI Endpoints (Week 6)
 
-- [ ] Implement AI endpoints
-- [ ] Add AI request logging
-- [ ] Test AI endpoints
+- [x] Install smol-toml for TOML configuration support (~10% token savings vs JSON)
+- [x] Create TOML configuration file for AI system prompts (`src/config/prompts.toml`)
+- [x] Create TOML loader utility (`src/utils/toml.ts`)
+- [x] Migrate AI service to use TOML-based prompts
+- [x] Test TOML configuration loading (100% coverage)
+- [x] Implement AI endpoints
+- [x] Add AI request logging
+- [x] Test AI endpoints
 
 ### Phase 8: RAG Implementation (Week 7)
 

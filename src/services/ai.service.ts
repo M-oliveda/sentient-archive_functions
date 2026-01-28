@@ -6,6 +6,9 @@
  * - Auto-tagging
  * - Flashcard generation
  * - RAG queries
+ *
+ * System prompts are loaded from TOML configuration for ~10% token savings.
+ * @see src/config/prompts.toml
  */
 
 import { Timestamp } from "firebase-admin/firestore";
@@ -31,11 +34,33 @@ import {
     RAGQueryResult,
     AIRequestLog,
 } from "@/types/ai.js";
+import { loadPromptsConfig, getDefaultAIConfig } from "@/utils/toml.js";
 
 /**
- * Default system prompts from MASTERPLAN
+ * Get default prompts from TOML configuration
+ * Falls back to hardcoded defaults if TOML loading fails
  */
-const DEFAULT_PROMPTS = {
+function getDefaultPrompts(): AIConfig["systemPrompts"] {
+    try {
+        const config = loadPromptsConfig();
+        return {
+            summarize: config.prompts.summarize.instructions,
+            autoTag: config.prompts.autoTag.instructions,
+            flashcards: config.prompts.flashcards.instructions,
+            ragQuery: config.prompts.ragQuery.instructions,
+        };
+    } catch {
+        // Fallback to hardcoded defaults if TOML loading fails
+        logError("Failed to load TOML prompts, using hardcoded defaults");
+        return FALLBACK_PROMPTS;
+    }
+}
+
+/**
+ * Fallback prompts in case TOML loading fails
+ * These match the TOML configuration for consistency
+ */
+const FALLBACK_PROMPTS = {
     summarize: `You are a helpful assistant that summarizes text content.
 Create a concise summary that captures the key points and main ideas.
 Keep the summary clear and well-structured.
@@ -76,18 +101,38 @@ const RETRY_CONFIG = {
  */
 export class AIService {
     /**
-     * Get AI configuration from Firestore or use defaults
+     * Get AI configuration from Firestore or use TOML defaults
+     *
+     * Priority order:
+     * 1. Firestore system_config (if exists)
+     * 2. TOML configuration (prompts.toml)
+     * 3. Hardcoded fallback defaults
      */
     async getConfig(): Promise<AIConfig> {
         const db = getDb();
         const configDoc = await db.collection("system_config").doc("settings").get();
 
+        // Load defaults from TOML configuration
+        const defaultPrompts = getDefaultPrompts();
+        let tomlDefaults: { temperature: number; maxTokens: number; model: string };
+
+        try {
+            tomlDefaults = getDefaultAIConfig();
+        } catch {
+            // Fallback if TOML loading fails
+            tomlDefaults = {
+                temperature: DEFAULT_TEMPERATURE,
+                maxTokens: DEFAULT_MAX_TOKENS,
+                model: "gemini-flash-lite-latest",
+            };
+        }
+
         if (!configDoc.exists) {
             return {
-                model: "gemini-flash-lite-latest",
-                maxTokensPerRequest: DEFAULT_MAX_TOKENS,
-                temperature: DEFAULT_TEMPERATURE,
-                systemPrompts: DEFAULT_PROMPTS,
+                model: tomlDefaults.model,
+                maxTokensPerRequest: tomlDefaults.maxTokens,
+                temperature: tomlDefaults.temperature,
+                systemPrompts: defaultPrompts,
             };
         }
 
@@ -95,16 +140,17 @@ export class AIService {
         const aiConfig = config?.["ai"] as AIConfig | undefined;
 
         return {
-            model: aiConfig?.model ?? "gemini-flash-lite-latest",
-            maxTokensPerRequest: aiConfig?.maxTokensPerRequest ?? DEFAULT_MAX_TOKENS,
-            temperature: aiConfig?.temperature ?? DEFAULT_TEMPERATURE,
+            model: aiConfig?.model ?? tomlDefaults.model,
+            maxTokensPerRequest:
+                aiConfig?.maxTokensPerRequest ?? tomlDefaults.maxTokens,
+            temperature: aiConfig?.temperature ?? tomlDefaults.temperature,
             systemPrompts: {
                 summarize:
-                    aiConfig?.systemPrompts?.summarize ?? DEFAULT_PROMPTS.summarize,
-                autoTag: aiConfig?.systemPrompts?.autoTag ?? DEFAULT_PROMPTS.autoTag,
+                    aiConfig?.systemPrompts?.summarize ?? defaultPrompts.summarize,
+                autoTag: aiConfig?.systemPrompts?.autoTag ?? defaultPrompts.autoTag,
                 flashcards:
-                    aiConfig?.systemPrompts?.flashcards ?? DEFAULT_PROMPTS.flashcards,
-                ragQuery: aiConfig?.systemPrompts?.ragQuery ?? DEFAULT_PROMPTS.ragQuery,
+                    aiConfig?.systemPrompts?.flashcards ?? defaultPrompts.flashcards,
+                ragQuery: aiConfig?.systemPrompts?.ragQuery ?? defaultPrompts.ragQuery,
             },
         };
     }

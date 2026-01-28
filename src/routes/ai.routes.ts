@@ -14,6 +14,7 @@ import { authMiddleware } from "@/middleware/auth.js";
 import { asyncHandler, AppError } from "@/middleware/errorHandler.js";
 import { aiService } from "@/services/ai.service.js";
 import { tokenService } from "@/services/token.service.js";
+import { ragService } from "@/services/rag.service.js";
 import { getDb } from "@/utils/firestore.js";
 import { logInfo, logEvent } from "@/utils/logger.js";
 import {
@@ -65,43 +66,6 @@ async function updateNote(
             ...data,
             updatedAt: Timestamp.now(),
         });
-}
-
-/**
- * Get context from user's notes for RAG queries
- * Note: The query parameter is reserved for future keyword-based filtering
- */
-async function getNotesContext(
-    userId: string,
-    _query: string,
-    maxResults: number,
-): Promise<{ context: string; noteIds: string[] }> {
-    const db = getDb();
-
-    // Simple implementation: fetch recent notes
-    // A more sophisticated implementation would use vector search or keyword matching
-    const snapshot = await db
-        .collection("users")
-        .doc(userId)
-        .collection("notes")
-        .where("isArchived", "==", false)
-        .orderBy("updatedAt", "desc")
-        .limit(maxResults)
-        .get();
-
-    const noteIds: string[] = [];
-    const contextParts: string[] = [];
-
-    snapshot.forEach((doc) => {
-        const note = doc.data() as Note;
-        noteIds.push(doc.id);
-        contextParts.push(`## ${note.title}\n${note.content}`);
-    });
-
-    return {
-        context: contextParts.join("\n\n---\n\n"),
-        noteIds,
-    };
 }
 
 /**
@@ -425,14 +389,10 @@ router.post(
             );
         }
 
-        // Get context from user's notes
-        const { context, noteIds } = await getNotesContext(
-            userId,
-            query,
-            maxResults ?? 5,
-        );
+        // Get context from user's notes using RAG service
+        const ragContext = await ragService.getContext(userId, query, maxResults ?? 5);
 
-        if (!context) {
+        if (!ragContext.context) {
             throw new AppError(
                 "NO_CONTEXT",
                 400,
@@ -446,15 +406,16 @@ router.post(
         // Generate answer
         const result = await aiService.ragQuery(userId, {
             query,
-            context,
+            context: ragContext.context,
         });
 
         logEvent("rag_query_answered", {
             userId,
             queryLength: query.length,
-            notesUsed: noteIds.length,
+            notesUsed: ragContext.notesFound,
             answerLength: result.answer.length,
             tokensUsed: result.tokensUsed,
+            totalRelevanceScore: ragContext.totalScore,
         });
 
         const response: ApiResponse<{
@@ -468,7 +429,7 @@ router.post(
             data: {
                 query,
                 answer: result.answer,
-                sourceNoteIds: noteIds,
+                sourceNoteIds: ragContext.noteIds,
                 tokensUsed: result.tokensUsed,
                 tokenCost,
             },

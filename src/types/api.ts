@@ -30,4 +30,6 @@ export type ApiErrorCode =
     | "EXTRACTION_FAILED"
     | "AI_API_ERROR"
     | "INTERNAL_ERROR"
-    | "FILE_EXTRACTION_DISABLED";
+    | "FILE_EXTRACTION_DISABLED"
+    | "FEATURE_DISABLED"
+    | "NO_CONTEXT";

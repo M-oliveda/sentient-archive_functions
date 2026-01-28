@@ -16,8 +16,15 @@ const mockDoc = jest.fn(() => ({
     update: mockUpdate,
 }));
 
+const mockOrderBy = jest.fn();
+const mockWhere = jest.fn();
+const mockCollectionGet = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const mockCollection = jest.fn(() => ({
     doc: mockDoc,
+    get: mockCollectionGet,
+    where: mockWhere,
+    orderBy: mockOrderBy,
 }));
 
 // Define module-level mocks
@@ -69,6 +76,8 @@ const {
     getSystemConfig,
     incrementRateLimit,
     getRateLimitCount,
+    listUsers,
+    updateUserAsAdmin,
 } = await import("@/utils/firestore.js");
 
 const { getFirestore } = await import("firebase-admin/firestore");
@@ -549,6 +558,407 @@ describe("Firestore Utility", () => {
                 windowStart,
             );
             expect(result).toBe(0);
+        });
+    });
+
+    describe("listUsers", () => {
+        beforeEach(() => {
+            // Setup query chain mock
+            mockWhere.mockReturnValue({
+                where: mockWhere,
+                orderBy: mockOrderBy,
+                get: mockCollectionGet,
+            });
+            mockOrderBy.mockReturnValue({
+                where: mockWhere,
+                orderBy: mockOrderBy,
+                get: mockCollectionGet,
+            });
+        });
+
+        test("should return list of users with defaults", async () => {
+            const mockUsers = [
+                {
+                    uid: "user1",
+                    email: "user1@example.com",
+                    displayName: "User One",
+                    role: "client",
+                    isActive: true,
+                },
+                {
+                    uid: "user2",
+                    email: "user2@example.com",
+                    displayName: "User Two",
+                    role: "admin",
+                    isActive: true,
+                },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const result = await listUsers();
+
+            expect(result.users).toHaveLength(2);
+            expect(result.total).toBe(2);
+            expect(mockOrderBy).toHaveBeenCalledWith("createdAt", "desc");
+        });
+
+        test("should filter users by role", async () => {
+            const mockUsers = [
+                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            await listUsers({ role: "client" });
+
+            expect(mockWhere).toHaveBeenCalledWith("role", "==", "client");
+        });
+
+        test("should filter users by isActive", async () => {
+            const mockUsers = [
+                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            await listUsers({ isActive: true });
+
+            expect(mockWhere).toHaveBeenCalledWith("isActive", "==", true);
+        });
+
+        test("should search users by email", async () => {
+            const mockUsers = [
+                {
+                    uid: "user1",
+                    email: "john@example.com",
+                    displayName: "John Doe",
+                    role: "client",
+                    isActive: true,
+                },
+                {
+                    uid: "user2",
+                    email: "jane@example.com",
+                    displayName: "Jane Doe",
+                    role: "client",
+                    isActive: true,
+                },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const result = await listUsers({ search: "john" });
+
+            expect(result.users).toHaveLength(1);
+            expect(result.users[0].email).toBe("john@example.com");
+        });
+
+        test("should search users by displayName", async () => {
+            const mockUsers = [
+                {
+                    uid: "user1",
+                    email: "user1@example.com",
+                    displayName: "John Smith",
+                    role: "client",
+                    isActive: true,
+                },
+                {
+                    uid: "user2",
+                    email: "user2@example.com",
+                    displayName: "Jane Doe",
+                    role: "client",
+                    isActive: true,
+                },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const result = await listUsers({ search: "smith" });
+
+            expect(result.users).toHaveLength(1);
+            expect(result.users[0].displayName).toBe("John Smith");
+        });
+
+        test("should apply pagination with limit and offset", async () => {
+            const mockUsers = [
+                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+                { uid: "user2", email: "user2@example.com", role: "client", isActive: true },
+                { uid: "user3", email: "user3@example.com", role: "client", isActive: true },
+                { uid: "user4", email: "user4@example.com", role: "client", isActive: true },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const result = await listUsers({ limit: 2, offset: 1 });
+
+            expect(result.users).toHaveLength(2);
+            expect(result.total).toBe(4);
+            expect(result.users[0].uid).toBe("user2");
+            expect(result.users[1].uid).toBe("user3");
+        });
+
+        test("should sort by specified field and order", async () => {
+            const mockUsers = [
+                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsers.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            await listUsers({ sortBy: "tokenBalance", sortOrder: "asc" });
+
+            expect(mockOrderBy).toHaveBeenCalledWith("tokenBalance", "asc");
+        });
+
+        test("should throw error on Firestore failure", async () => {
+            mockCollectionGet.mockRejectedValue(new Error("Firestore error"));
+
+            await expect(listUsers()).rejects.toThrow("Firestore error");
+        });
+
+        test("should handle non-Error throw in listUsers", async () => {
+            mockCollectionGet.mockRejectedValue("String error");
+
+            await expect(listUsers()).rejects.toEqual("String error");
+        });
+    });
+
+    describe("updateUserAsAdmin", () => {
+        test("should update user role", async () => {
+            const existingUser = {
+                uid: "user123",
+                email: "user@example.com",
+                role: "client",
+                isActive: true,
+                tokenBalance: 100,
+                totalTokensGranted: 100,
+            };
+
+            mockRunTransaction.mockImplementation((async (
+                callback: (t: {
+                    get: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+                    update: jest.Mock<(...args: unknown[]) => unknown>;
+                }) => Promise<unknown>,
+            ) => {
+                const mockTransaction = {
+                    get: jest
+                        .fn<(...args: unknown[]) => Promise<unknown>>()
+                        .mockResolvedValue({
+                            exists: true,
+                            data: () => existingUser,
+                        }),
+                    update: jest.fn(),
+                };
+                return await callback(mockTransaction);
+            }) as (...args: unknown[]) => Promise<unknown>);
+
+            const result = await updateUserAsAdmin("user123", { role: "admin" });
+
+            expect(result.role).toBe("admin");
+        });
+
+        test("should update user isActive status", async () => {
+            const existingUser = {
+                uid: "user123",
+                email: "user@example.com",
+                role: "client",
+                isActive: true,
+                tokenBalance: 100,
+                totalTokensGranted: 100,
+            };
+
+            mockRunTransaction.mockImplementation((async (
+                callback: (t: {
+                    get: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+                    update: jest.Mock<(...args: unknown[]) => unknown>;
+                }) => Promise<unknown>,
+            ) => {
+                const mockTransaction = {
+                    get: jest
+                        .fn<(...args: unknown[]) => Promise<unknown>>()
+                        .mockResolvedValue({
+                            exists: true,
+                            data: () => existingUser,
+                        }),
+                    update: jest.fn(),
+                };
+                return await callback(mockTransaction);
+            }) as (...args: unknown[]) => Promise<unknown>);
+
+            const result = await updateUserAsAdmin("user123", { isActive: false });
+
+            expect(result.isActive).toBe(false);
+        });
+
+        test("should update token balance and track granted tokens", async () => {
+            const existingUser = {
+                uid: "user123",
+                email: "user@example.com",
+                role: "client",
+                isActive: true,
+                tokenBalance: 100,
+                totalTokensGranted: 100,
+            };
+
+            mockRunTransaction.mockImplementation((async (
+                callback: (t: {
+                    get: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+                    update: jest.Mock<(...args: unknown[]) => unknown>;
+                }) => Promise<unknown>,
+            ) => {
+                const mockTransaction = {
+                    get: jest
+                        .fn<(...args: unknown[]) => Promise<unknown>>()
+                        .mockResolvedValue({
+                            exists: true,
+                            data: () => existingUser,
+                        }),
+                    update: jest.fn(),
+                };
+                return await callback(mockTransaction);
+            }) as (...args: unknown[]) => Promise<unknown>);
+
+            const result = await updateUserAsAdmin("user123", { tokenBalance: 200 });
+
+            expect(result.tokenBalance).toBe(200);
+            expect(result.totalTokensGranted).toBe(200); // 100 + (200 - 100)
+        });
+
+        test("should not increase totalTokensGranted when reducing balance", async () => {
+            const existingUser = {
+                uid: "user123",
+                email: "user@example.com",
+                role: "client",
+                isActive: true,
+                tokenBalance: 100,
+                totalTokensGranted: 100,
+            };
+
+            mockRunTransaction.mockImplementation((async (
+                callback: (t: {
+                    get: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+                    update: jest.Mock<(...args: unknown[]) => unknown>;
+                }) => Promise<unknown>,
+            ) => {
+                const mockTransaction = {
+                    get: jest
+                        .fn<(...args: unknown[]) => Promise<unknown>>()
+                        .mockResolvedValue({
+                            exists: true,
+                            data: () => existingUser,
+                        }),
+                    update: jest.fn(),
+                };
+                return await callback(mockTransaction);
+            }) as (...args: unknown[]) => Promise<unknown>);
+
+            const result = await updateUserAsAdmin("user123", { tokenBalance: 50 });
+
+            expect(result.tokenBalance).toBe(50);
+            // totalTokensGranted should not increase when reducing balance
+            expect(result.totalTokensGranted).toBe(100);
+        });
+
+        test("should throw error when user not found", async () => {
+            mockRunTransaction.mockImplementation((async (
+                callback: (t: {
+                    get: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+                    update: jest.Mock<(...args: unknown[]) => unknown>;
+                }) => Promise<unknown>,
+            ) => {
+                const mockTransaction = {
+                    get: jest
+                        .fn<(...args: unknown[]) => Promise<unknown>>()
+                        .mockResolvedValue({
+                            exists: false,
+                        }),
+                    update: jest.fn(),
+                };
+                return await callback(mockTransaction);
+            }) as (...args: unknown[]) => Promise<unknown>);
+
+            await expect(
+                updateUserAsAdmin("nonexistent", { role: "admin" }),
+            ).rejects.toThrow("User not found");
+        });
+
+        test("should throw error on transaction failure", async () => {
+            mockRunTransaction.mockRejectedValue(new Error("Transaction error"));
+
+            await expect(
+                updateUserAsAdmin("user123", { role: "admin" }),
+            ).rejects.toThrow("Transaction error");
+        });
+
+        test("should handle non-Error throw in updateUserAsAdmin", async () => {
+            mockRunTransaction.mockRejectedValue("String error");
+
+            await expect(
+                updateUserAsAdmin("user123", { role: "admin" }),
+            ).rejects.toEqual("String error");
+        });
+
+        test("should handle user with missing tokenBalance field", async () => {
+            const existingUser = {
+                uid: "user123",
+                email: "user@example.com",
+                role: "client",
+                isActive: true,
+                // tokenBalance is undefined
+                // totalTokensGranted is undefined
+            };
+
+            mockRunTransaction.mockImplementation((async (
+                callback: (t: {
+                    get: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+                    update: jest.Mock<(...args: unknown[]) => unknown>;
+                }) => Promise<unknown>,
+            ) => {
+                const mockTransaction = {
+                    get: jest
+                        .fn<(...args: unknown[]) => Promise<unknown>>()
+                        .mockResolvedValue({
+                            exists: true,
+                            data: () => existingUser,
+                        }),
+                    update: jest.fn(),
+                };
+                return await callback(mockTransaction);
+            }) as (...args: unknown[]) => Promise<unknown>);
+
+            const result = await updateUserAsAdmin("user123", { tokenBalance: 100 });
+
+            expect(result.tokenBalance).toBe(100);
+            // Both tokenBalance and totalTokensGranted default to 0, so:
+            // difference = 100 - 0 = 100, totalTokensGranted = 0 + 100 = 100
+            expect(result.totalTokensGranted).toBe(100);
         });
     });
 });

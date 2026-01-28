@@ -322,7 +322,7 @@ describe("Admin Routes Integration Tests", () => {
             expect(response.status).toBe(200);
 
             const data = (response.body as { data: Record<string, unknown> }).data;
-            const users = data["users"] as Array<{ role: string }>;
+            const users = data["users"] as { role: string }[];
 
             users.forEach((user) => {
                 expect(user.role).toBe("client");
@@ -337,7 +337,7 @@ describe("Admin Routes Integration Tests", () => {
             expect(response.status).toBe(200);
 
             const data = (response.body as { data: Record<string, unknown> }).data;
-            const users = data["users"] as Array<{ isActive: boolean }>;
+            const users = data["users"] as { isActive: boolean }[];
 
             users.forEach((user) => {
                 expect(user.isActive).toBe(true);
@@ -352,7 +352,10 @@ describe("Admin Routes Integration Tests", () => {
             expect(response.status).toBe(200);
 
             const data = (response.body as { data: Record<string, unknown> }).data;
-            const users = data["users"] as Array<{ email: string; displayName: string }>;
+            const users = data["users"] as {
+                email: string;
+                displayName: string;
+            }[];
 
             // At least one user should match "client" in email or displayName
             const hasMatch = users.some(
@@ -393,7 +396,10 @@ describe("Admin Routes Integration Tests", () => {
             expect(data["role"]).toBe("admin");
 
             // Restore original role
-            await db.collection("users").doc(ANOTHER_CLIENT_ID).update({ role: "client" });
+            await db
+                .collection("users")
+                .doc(ANOTHER_CLIENT_ID)
+                .update({ role: "client" });
         });
 
         test("should update user isActive status", async () => {
@@ -408,7 +414,10 @@ describe("Admin Routes Integration Tests", () => {
             expect(data["isActive"]).toBe(false);
 
             // Restore original status
-            await db.collection("users").doc(ANOTHER_CLIENT_ID).update({ isActive: true });
+            await db
+                .collection("users")
+                .doc(ANOTHER_CLIENT_ID)
+                .update({ isActive: true });
         });
 
         test("should update user tokenBalance", async () => {
@@ -492,7 +501,9 @@ describe("Admin Routes Integration Tests", () => {
                 .collection("system_config")
                 .doc("settings")
                 .delete()
-                .catch(() => {});
+                .catch(() => {
+                    // Ignore if doesn't exist
+                });
 
             const response = await request(expressApp)
                 .get("/v1/admin/config")
@@ -538,9 +549,8 @@ describe("Admin Routes Integration Tests", () => {
                 .get("/v1/admin/config")
                 .set("Authorization", "Bearer test-token");
 
-            const currentVersion = (
-                getResponse.body as { data: { version: number } }
-            ).data.version;
+            const currentVersion = (getResponse.body as { data: { version: number } })
+                .data.version;
 
             // Update config
             const updateResponse = await request(expressApp)
@@ -554,9 +564,8 @@ describe("Admin Routes Integration Tests", () => {
 
             expect(updateResponse.status).toBe(200);
 
-            const newVersion = (
-                updateResponse.body as { data: { version: number } }
-            ).data.version;
+            const newVersion = (updateResponse.body as { data: { version: number } })
+                .data.version;
             expect(newVersion).toBe(currentVersion + 1);
         });
 

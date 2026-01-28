@@ -246,3 +246,175 @@ export async function getRateLimitCount(
         return 0;
     }
 }
+
+/**
+ * Options for listing users
+ */
+export interface ListUsersOptions {
+    limit?: number;
+    offset?: number;
+    role?: "client" | "admin";
+    isActive?: boolean;
+    search?: string;
+    sortBy?: "createdAt" | "lastLoginAt" | "tokenBalance";
+    sortOrder?: "asc" | "desc";
+}
+
+/**
+ * Result of listing users
+ */
+export interface ListUsersResult {
+    users: User[];
+    total: number;
+}
+
+/**
+ * List users with filtering, search, and pagination
+ *
+ * @param options - List options
+ * @returns Users and total count
+ */
+export async function listUsers(
+    options: ListUsersOptions = {},
+): Promise<ListUsersResult> {
+    const {
+        limit = 20,
+        offset = 0,
+        role,
+        isActive,
+        search,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+    } = options;
+
+    try {
+        const db = getDb();
+        let query: FirebaseFirestore.Query = db.collection("users");
+
+        // Apply role filter
+        if (role !== undefined) {
+            query = query.where("role", "==", role);
+        }
+
+        // Apply isActive filter
+        if (isActive !== undefined) {
+            query = query.where("isActive", "==", isActive);
+        }
+
+        // Apply sorting
+        query = query.orderBy(sortBy, sortOrder);
+
+        // Get all matching documents for total count and search filtering
+        const snapshot = await query.get();
+
+        let users: User[] = [];
+        snapshot.forEach((doc) => {
+            users.push(doc.data() as User);
+        });
+
+        // Apply search filter (case-insensitive on email and displayName)
+        if (search) {
+            const searchLower = search.toLowerCase();
+            users = users.filter((user) => {
+                const emailMatch = user.email?.toLowerCase().includes(searchLower);
+                const nameMatch = user.displayName?.toLowerCase().includes(searchLower);
+                return emailMatch || nameMatch;
+            });
+        }
+
+        const total = users.length;
+
+        // Apply pagination
+        users = users.slice(offset, offset + limit);
+
+        return { users, total };
+    } catch (error) {
+        logError("Failed to list users", error instanceof Error ? error : undefined, {
+            limit: options.limit,
+            offset: options.offset,
+            role: options.role,
+            search: options.search,
+        });
+        throw error;
+    }
+}
+
+/**
+ * Update options for admin user update
+ */
+export interface AdminUserUpdateOptions {
+    role?: "client" | "admin";
+    isActive?: boolean;
+    tokenBalance?: number;
+}
+
+/**
+ * Update a user as admin
+ * Uses Firestore transaction for atomicity
+ *
+ * @param uid - User ID to update
+ * @param updates - Fields to update
+ * @returns Updated user data
+ */
+export async function updateUserAsAdmin(
+    uid: string,
+    updates: AdminUserUpdateOptions,
+): Promise<User> {
+    const db = getDb();
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+        const result = await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+
+            if (!userDoc.exists) {
+                throw new Error("User not found");
+            }
+
+            const currentUser = userDoc.data() as User;
+
+            // Build update object
+            const updateData: Record<string, unknown> = {
+                updatedAt: new Date(),
+            };
+
+            if (updates.role !== undefined) {
+                updateData["role"] = updates.role;
+            }
+
+            if (updates.isActive !== undefined) {
+                updateData["isActive"] = updates.isActive;
+            }
+
+            if (updates.tokenBalance !== undefined) {
+                // Calculate the difference for totalTokensGranted adjustment
+                const currentBalance = currentUser.tokenBalance ?? 0;
+                const difference = updates.tokenBalance - currentBalance;
+
+                updateData["tokenBalance"] = updates.tokenBalance;
+
+                // If increasing balance, track it as granted
+                if (difference > 0) {
+                    updateData["totalTokensGranted"] =
+                        (currentUser.totalTokensGranted ?? 0) + difference;
+                }
+            }
+
+            transaction.update(userRef, updateData);
+
+            return {
+                ...currentUser,
+                ...updateData,
+            } as User;
+        });
+
+        return result;
+    } catch (error) {
+        logError(
+            "Failed to update user as admin",
+            error instanceof Error ? error : undefined,
+            { uid, updates },
+        );
+        throw error;
+    }
+}

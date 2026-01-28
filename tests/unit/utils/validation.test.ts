@@ -13,6 +13,8 @@ import {
     TokenMintRequestSchema,
     TokenHistoryQuerySchema,
     AdminUserUpdateSchema,
+    AdminUsersQuerySchema,
+    AdminAnalyticsQuerySchema,
     SystemConfigUpdateSchema,
     validateRequest,
     safeValidateRequest,
@@ -497,6 +499,144 @@ describe("Validation Utility", () => {
             const data = { name: "John", age: "thirty" };
 
             expect(() => validateRequest(schema, data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("AdminUsersQuerySchema", () => {
+        test("should validate valid query with all options", () => {
+            const data = {
+                limit: "50",
+                offset: "10",
+                role: "client",
+                isActive: true,
+                search: "john",
+                sortBy: "lastLoginAt",
+                sortOrder: "asc",
+            };
+
+            const result = AdminUsersQuerySchema.parse(data);
+
+            expect(result.limit).toBe(50);
+            expect(result.offset).toBe(10);
+            expect(result.role).toBe("client");
+            expect(result.isActive).toBe(true);
+            expect(result.search).toBe("john");
+            expect(result.sortBy).toBe("lastLoginAt");
+            expect(result.sortOrder).toBe("asc");
+        });
+
+        test("should use default values when not provided", () => {
+            const data = {};
+            const result = AdminUsersQuerySchema.parse(data);
+
+            expect(result.limit).toBe(20);
+            expect(result.offset).toBe(0);
+            expect(result.sortBy).toBe("createdAt");
+            expect(result.sortOrder).toBe("desc");
+        });
+
+        test("should transform string 'true' to boolean true for isActive", () => {
+            const data = { isActive: "true" };
+            const result = AdminUsersQuerySchema.parse(data);
+
+            expect(result.isActive).toBe(true);
+        });
+
+        test("should transform string 'false' to boolean false for isActive", () => {
+            const data = { isActive: "false" };
+            const result = AdminUsersQuerySchema.parse(data);
+
+            expect(result.isActive).toBe(false);
+        });
+
+        test("should accept boolean true for isActive", () => {
+            const data = { isActive: true };
+            const result = AdminUsersQuerySchema.parse(data);
+
+            expect(result.isActive).toBe(true);
+        });
+
+        test("should accept boolean false for isActive", () => {
+            const data = { isActive: false };
+            const result = AdminUsersQuerySchema.parse(data);
+
+            expect(result.isActive).toBe(false);
+        });
+
+        test("should reject limit below minimum", () => {
+            const data = { limit: "0" };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject limit above maximum", () => {
+            const data = { limit: "150" };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject negative offset", () => {
+            const data = { offset: "-5" };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject invalid role", () => {
+            const data = { role: "superadmin" };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject invalid sortBy", () => {
+            const data = { sortBy: "email" };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject invalid sortOrder", () => {
+            const data = { sortOrder: "random" };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject search query that is too long", () => {
+            const data = { search: "a".repeat(101) };
+
+            expect(() => AdminUsersQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("AdminAnalyticsQuerySchema", () => {
+        test("should validate valid date range", () => {
+            const data = {
+                startDate: "2024-01-01",
+                endDate: "2024-12-31",
+            };
+
+            const result = AdminAnalyticsQuerySchema.parse(data);
+
+            expect(result.startDate).toBe("2024-01-01");
+            expect(result.endDate).toBe("2024-12-31");
+        });
+
+        test("should accept empty query", () => {
+            const data = {};
+            const result = AdminAnalyticsQuerySchema.parse(data);
+
+            expect(result.startDate).toBeUndefined();
+            expect(result.endDate).toBeUndefined();
+        });
+
+        test("should reject invalid date format for startDate", () => {
+            const data = { startDate: "01-01-2024" };
+
+            expect(() => AdminAnalyticsQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+
+        test("should reject invalid date format for endDate", () => {
+            const data = { endDate: "2024/12/31" };
+
+            expect(() => AdminAnalyticsQuerySchema.parse(data)).toThrow(z.ZodError);
         });
     });
 

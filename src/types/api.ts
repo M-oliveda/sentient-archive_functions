@@ -32,4 +32,5 @@ export type ApiErrorCode =
     | "INTERNAL_ERROR"
     | "FILE_EXTRACTION_DISABLED"
     | "FEATURE_DISABLED"
-    | "NO_CONTEXT";
+    | "NO_CONTEXT"
+    | "SELF_MODIFICATION_NOT_ALLOWED";

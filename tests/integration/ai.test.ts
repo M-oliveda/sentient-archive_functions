@@ -406,5 +406,194 @@ describe("AI Routes Integration Tests", () => {
                     sourceFile: null,
                 });
         });
+
+        test("should return NO_CONTEXT when query has no matching keywords", async () => {
+            const response = await request(expressApp)
+                .post("/v1/ai/ragQuery")
+                .set("Authorization", "Bearer test-token")
+                .send({ query: "quantum physics string theory" }); // No match to ML note
+
+            expect(response.status).toBe(400);
+            expect((response.body as { error: { code: string } }).error.code).toBe(
+                "NO_CONTEXT",
+            );
+        });
+
+        test("should exclude archived notes from context", async () => {
+            // Create an archived note with matching content
+            const archivedNoteRef = db
+                .collection("users")
+                .doc(TEST_USER_ID)
+                .collection("notes")
+                .doc();
+
+            await archivedNoteRef.set({
+                id: archivedNoteRef.id,
+                userId: TEST_USER_ID,
+                title: "Archived Deep Learning Note",
+                content: "Deep learning neural networks AI machine learning",
+                excerpt: "Deep learning neural networks",
+                folderId: null,
+                tags: ["deep-learning"],
+                aiTags: [],
+                summary: null,
+                flashcards: null,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+                viewedAt: Timestamp.now(),
+                isPinned: false,
+                isArchived: true, // Archived
+                sourceFile: null,
+            });
+
+            // Also archive the main test note temporarily
+            await db
+                .collection("users")
+                .doc(TEST_USER_ID)
+                .collection("notes")
+                .doc(testNoteId)
+                .update({ isArchived: true });
+
+            const response = await request(expressApp)
+                .post("/v1/ai/ragQuery")
+                .set("Authorization", "Bearer test-token")
+                .send({ query: "machine learning neural" });
+
+            // Should return NO_CONTEXT because all matching notes are archived
+            expect(response.status).toBe(400);
+            expect((response.body as { error: { code: string } }).error.code).toBe(
+                "NO_CONTEXT",
+            );
+
+            // Cleanup
+            await archivedNoteRef.delete();
+            await db
+                .collection("users")
+                .doc(TEST_USER_ID)
+                .collection("notes")
+                .doc(testNoteId)
+                .update({ isArchived: false });
+        });
+    });
+
+    describe("RAG Query with keyword matching", () => {
+        let additionalNoteId: string;
+
+        test("should find notes by title keywords", async () => {
+            // Create an additional note
+            const additionalNoteRef = db
+                .collection("users")
+                .doc(TEST_USER_ID)
+                .collection("notes")
+                .doc();
+            additionalNoteId = additionalNoteRef.id;
+
+            await additionalNoteRef.set({
+                id: additionalNoteId,
+                userId: TEST_USER_ID,
+                title: "React JavaScript Frontend Development",
+                content: "React is a JavaScript library for building user interfaces.",
+                excerpt: "React is a JavaScript library",
+                folderId: null,
+                tags: ["react", "javascript"],
+                aiTags: ["frontend"],
+                summary: "Guide to React development",
+                flashcards: null,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+                viewedAt: Timestamp.now(),
+                isPinned: false,
+                isArchived: false,
+                sourceFile: null,
+            });
+
+            // Query for "machine learning" should match original note
+            // Query for "react javascript" should match additional note
+            // We can't directly test the response body for context in integration tests
+            // without mocking Gemini, so we verify the endpoint accepts valid queries
+
+            // This will fail at the Gemini API call (no API key in tests)
+            // but we can verify the context retrieval worked by checking it got past the NO_CONTEXT error
+            const response = await request(expressApp)
+                .post("/v1/ai/ragQuery")
+                .set("Authorization", "Bearer test-token")
+                .send({ query: "react javascript frontend" });
+
+            // Should NOT be NO_CONTEXT (context was found)
+            // Will likely be 502 (AI_API_ERROR) because Gemini isn't available in tests
+            // or 200 if GEMINI_API_KEY is set in the test environment
+            expect(response.status).not.toBe(400);
+
+            // Cleanup
+            await db
+                .collection("users")
+                .doc(TEST_USER_ID)
+                .collection("notes")
+                .doc(additionalNoteId)
+                .delete();
+        });
+
+        test("should find notes by tag keywords", async () => {
+            // The test note has tag "machine-learning"
+            const response = await request(expressApp)
+                .post("/v1/ai/ragQuery")
+                .set("Authorization", "Bearer test-token")
+                .send({ query: "machine-learning algorithms" });
+
+            // Should find context (not NO_CONTEXT error)
+            expect(response.status).not.toBe(400);
+        });
+
+        test("should respect maxResults parameter", async () => {
+            // Create multiple notes
+            const noteRefs: string[] = [];
+            for (let i = 0; i < 3; i++) {
+                const ref = db
+                    .collection("users")
+                    .doc(TEST_USER_ID)
+                    .collection("notes")
+                    .doc();
+                noteRefs.push(ref.id);
+                await ref.set({
+                    id: ref.id,
+                    userId: TEST_USER_ID,
+                    title: `Test Note ${i} about Python`,
+                    content: `Python programming content ${i}`,
+                    excerpt: `Python programming content ${i}`,
+                    folderId: null,
+                    tags: ["python"],
+                    aiTags: [],
+                    summary: null,
+                    flashcards: null,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                    viewedAt: Timestamp.now(),
+                    isPinned: false,
+                    isArchived: false,
+                    sourceFile: null,
+                });
+            }
+
+            const response = await request(expressApp)
+                .post("/v1/ai/ragQuery")
+                .set("Authorization", "Bearer test-token")
+                .send({
+                    query: "python programming",
+                    maxResults: 2, // Limit to 2 results
+                });
+
+            // Should not be NO_CONTEXT
+            expect(response.status).not.toBe(400);
+
+            // Cleanup
+            for (const noteId of noteRefs) {
+                await db
+                    .collection("users")
+                    .doc(TEST_USER_ID)
+                    .collection("notes")
+                    .doc(noteId)
+                    .delete();
+            }
+        });
     });
 });

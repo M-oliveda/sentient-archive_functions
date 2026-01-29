@@ -1120,12 +1120,12 @@ SentientArchive Functions are deployed to Firebase Cloud Functions (Gen 2).
 **Important:** Cloud Functions supports **4 environments** (not 5 like the web
 repository) due to Firebase project limitations.
 
-| Environment     | Branch Source | Firebase Project           | Deployment Trigger | Notes                       |
-| :-------------- | :------------ | :------------------------- | :----------------- | :-------------------------- |
-| **Local**       | `feature/*`   | `demo-sentient-archive`    | Manual (emulator)  | Docker Compose + Emulators  |
-| **Development** | `develop`     | `sentient-archive-dev`     | Auto (on push)     | Shared dev environment      |
-| **Staging**     | `release/*`   | `sentient-archive-staging` | Auto (on push)     | Pre-production testing      |
-| **Production**  | `main`        | `sentient-archive-prod`    | Manual Dispatch    | Live production environment |
+| Environment     | Branch Source | GCP Project                    | Deployment Trigger | Notes                       |
+| :-------------- | :------------ | :----------------------------- | :----------------- | :-------------------------- |
+| **Local**       | `feature/*`   | `demo-sentient-archive`        | Manual (emulator)  | Docker Compose + Emulators  |
+| **Development** | `develop`     | `moliveda-gcloudprojects-dev`  | Auto (on push)     | Shared dev environment      |
+| **Staging**     | `release/*`   | `moliveda-gcloudprojects-stg`  | Auto (on push)     | Pre-production testing      |
+| **Production**  | `main`        | `moliveda-gcloudprojects-prod` | Manual Dispatch    | Live production environment |
 
 **Why No Preview Environment?**
 
@@ -1220,34 +1220,31 @@ Manual trigger from `main` branch:
 - Builds functions
 - Deploys to production environment
 
-**Required GitHub Secrets:**
+**Required GitHub Secrets (per environment):**
+
+Authentication uses **Workload Identity Federation** (no service account keys required).
 
 ```text
-# Development
-GCP_SA_KEY_DEV
-GEMINI_API_KEY_DEV
-
-# Staging
-GCP_SA_KEY_STAGING
-GEMINI_API_KEY_STAGING
-
-# Production
-GCP_SA_KEY_PROD
-GEMINI_API_KEY_PROD
+# All environments (development, staging, production)
+GCP_PROJECT_ID                    # GCP Project ID
+GCP_WORKLOAD_IDENTITY_PROVIDER    # Workload Identity Provider path
+GCP_SERVICE_ACCOUNT               # Service account email for CI/CD
+GEMINI_API_KEY                    # Gemini API key
 ```
 
-**Setup Service Account:**
+**Setup Workload Identity Federation:**
 
-1. Create a Service Account in Google Cloud Console
-2. Grant `Cloud Functions Developer` and `Service Account User` roles
-3. Download the JSON key
-4. Add the key content to GitHub Secrets
+1. Create a Workload Identity Pool in Google Cloud Console
+2. Add a GitHub provider to the pool
+3. Create a Service Account with required roles
+4. Grant the Service Account access to the Workload Identity Pool
+5. Add the secrets to each GitHub environment
 
 ### Environment URLs
 
-- **Development:** `https://us-central1-sentient-archive-dev.cloudfunctions.net`
-- **Staging:** `https://us-central1-sentient-archive-staging.cloudfunctions.net`
-- **Production:** `https://us-central1-sentient-archive-prod.cloudfunctions.net`
+- **Development:** `https://us-central1-moliveda-gcloudprojects-dev.cloudfunctions.net`
+- **Staging:** `https://us-central1-moliveda-gcloudprojects-stg.cloudfunctions.net`
+- **Production:** `https://us-central1-moliveda-gcloudprojects-prod.cloudfunctions.net`
 
 ### Firestore Setup
 

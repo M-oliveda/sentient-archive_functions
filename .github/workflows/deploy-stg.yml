@@ -1,15 +1,15 @@
-# Deploy to Development Environment
+# Deploy to Staging Environment
 #
-# Automatically deploys to the development Firebase project when code is pushed
-# to the develop branch. Runs full test suite before deployment.
+# Automatically deploys to the staging Firebase project when code is pushed
+# to release/* branches. Runs full test suite before deployment.
 #
 # Authentication: Uses Workload Identity Federation (no service account keys)
 
-name: Deploy to Development
+name: Deploy to Staging
 
 on:
   push:
-    branches: [develop]
+    branches: [release/*]
 
 env:
   NODE_VERSION: "24"
@@ -104,7 +104,7 @@ jobs:
     timeout-minutes: 20
     needs: integration-test
     environment:
-      name: development
+      name: staging
       url: https://us-central1-${{ secrets.GCP_PROJECT_ID }}.cloudfunctions.net
     permissions:
       contents: read
@@ -146,7 +146,7 @@ jobs:
         run: |
           echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** Development" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Staging" >> $GITHUB_STEP_SUMMARY
           echo "**Project:** ${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** https://us-central1-${{ secrets.GCP_PROJECT_ID }}.cloudfunctions.net" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

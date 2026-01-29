@@ -1,23 +1,37 @@
-# Deploy to Development Environment
+# Deploy to Production Environment
 #
-# Automatically deploys to the development Firebase project when code is pushed
-# to the develop branch. Runs full test suite before deployment.
+# Manual deployment to production Firebase project. Requires workflow_dispatch trigger.
+# Runs full test suite before deployment.
 #
 # Authentication: Uses Workload Identity Federation (no service account keys)
 
-name: Deploy to Development
+name: Deploy to Production
 
 on:
-  push:
-    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'deploy-production' to confirm deployment"
+        required: true
+        type: string
 
 env:
   NODE_VERSION: "24"
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        if: ${{ github.event.inputs.confirm != 'deploy-production' }}
+        run: |
+          echo "::error::Deployment not confirmed. Please type 'deploy-production' to confirm."
+          exit 1
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: validate
 
     steps:
       - name: Checkout code
@@ -104,7 +118,7 @@ jobs:
     timeout-minutes: 20
     needs: integration-test
     environment:
-      name: development
+      name: production
       url: https://us-central1-${{ secrets.GCP_PROJECT_ID }}.cloudfunctions.net
     permissions:
       contents: read
@@ -146,9 +160,9 @@ jobs:
         run: |
           echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** Development" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
           echo "**Project:** ${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** https://us-central1-${{ secrets.GCP_PROJECT_ID }}.cloudfunctions.net" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

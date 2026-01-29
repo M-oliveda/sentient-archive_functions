@@ -8,7 +8,7 @@ import { jest } from "@jest/globals";
 
 // Set test environment variables
 process.env["NODE_ENV"] = "test";
-process.env["FIREBASE_PROJECT_ID"] = "demo-sentient-archive";
+process.env["GCP_PROJECT_ID"] = "demo-sentient-archive";
 process.env["FUNCTIONS_EMULATOR"] = "true";
 process.env["GEMINI_API_KEY"] = "test-api-key";
 

@@ -117,9 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: integration-test
-    environment:
-      name: production
-      url: https://us-central1-${{ secrets.GCP_PROJECT_ID }}.cloudfunctions.net
+    environment: production
     permissions:
       contents: read
       id-token: write

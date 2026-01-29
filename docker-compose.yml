@@ -36,7 +36,7 @@ services:
       # Node modules volume for performance
       - firebase_node_modules:/app/node_modules
     environment:
-      - FIREBASE_PROJECT_ID=demo-sentient-archive
+      - GCP_PROJECT_ID=demo-sentient-archive
       - FUNCTIONS_EMULATOR=true
       - FIRESTORE_EMULATOR_HOST=0.0.0.0:8081
       - FIREBASE_AUTH_EMULATOR_HOST=0.0.0.0:9099

@@ -680,7 +680,7 @@
   const EnvSchema = z.object({
     GEMINI_API_KEY: z.string().min(1),
     NODE_ENV: z.enum(["development", "staging", "production"]),
-    FIREBASE_PROJECT_ID: z.string().min(1),
+    GCP_PROJECT_ID: z.string().min(1),
   });
 
   export const env = EnvSchema.parse(process.env);

@@ -25,6 +25,11 @@ firebase-debug.log
 firebase-debug.*.log
 ui-debug.log
 
+# GCP/Firebase Service Account Keys
+gcp-key*.json
+*-sa-key.json
+*-service-account.json
+
 # Testing
 coverage/
 .nyc_output/

@@ -494,7 +494,7 @@ Edit `.env` and add your Gemini API key:
 GEMINI_API_KEY=your_gemini_api_key_here
 NODE_ENV=development
 FUNCTIONS_EMULATOR=true
-FIREBASE_PROJECT_ID=demo-sentient-archive
+GCP_PROJECT_ID=demo-sentient-archive
 ```
 
 **4. Start Firebase Emulators:**
@@ -616,8 +616,8 @@ git flow feature finish file-extraction
 
 **2. Seed test data:**
 
-The project includes a comprehensive seed script that populates the Firebase emulators with
-realistic test data for development and testing.
+The project includes a comprehensive seed script that populates the Firebase emulators
+with realistic test data for development and testing.
 
 ```bash
 # Start emulators (if not already running)
@@ -675,8 +675,8 @@ npm run emulators:stop
 docker compose stop
 ```
 
-The seeded data is saved to `./firebase/seed-data/` and will be automatically imported on
-the next startup, so you don't need to re-seed every time.
+The seeded data is saved to `./firebase/seed-data/` and will be automatically imported
+on the next startup, so you don't need to re-seed every time.
 
 **Reset and Re-seed:**
 
@@ -734,7 +734,7 @@ NODE_ENV=development
 FUNCTIONS_EMULATOR=true
 
 # Firebase Project ID (for emulator)
-FIREBASE_PROJECT_ID=demo-sentient-archive
+GCP_PROJECT_ID=demo-sentient-archive
 ```
 
 **Firebase Functions Config (for deployed environments):**

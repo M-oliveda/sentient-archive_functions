@@ -609,7 +609,12 @@ describe("Firestore Utility", () => {
 
         test("should filter users by role", async () => {
             const mockUsers = [
-                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+                {
+                    uid: "user1",
+                    email: "user1@example.com",
+                    role: "client",
+                    isActive: true,
+                },
             ];
 
             mockCollectionGet.mockResolvedValue({
@@ -625,7 +630,12 @@ describe("Firestore Utility", () => {
 
         test("should filter users by isActive", async () => {
             const mockUsers = [
-                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+                {
+                    uid: "user1",
+                    email: "user1@example.com",
+                    role: "client",
+                    isActive: true,
+                },
             ];
 
             mockCollectionGet.mockResolvedValue({
@@ -666,7 +676,7 @@ describe("Firestore Utility", () => {
             const result = await listUsers({ search: "john" });
 
             expect(result.users).toHaveLength(1);
-            expect(result.users[0].email).toBe("john@example.com");
+            expect(result.users[0]?.email).toBe("john@example.com");
         });
 
         test("should search users by displayName", async () => {
@@ -696,15 +706,35 @@ describe("Firestore Utility", () => {
             const result = await listUsers({ search: "smith" });
 
             expect(result.users).toHaveLength(1);
-            expect(result.users[0].displayName).toBe("John Smith");
+            expect(result.users[0]?.displayName).toBe("John Smith");
         });
 
         test("should apply pagination with limit and offset", async () => {
             const mockUsers = [
-                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
-                { uid: "user2", email: "user2@example.com", role: "client", isActive: true },
-                { uid: "user3", email: "user3@example.com", role: "client", isActive: true },
-                { uid: "user4", email: "user4@example.com", role: "client", isActive: true },
+                {
+                    uid: "user1",
+                    email: "user1@example.com",
+                    role: "client",
+                    isActive: true,
+                },
+                {
+                    uid: "user2",
+                    email: "user2@example.com",
+                    role: "client",
+                    isActive: true,
+                },
+                {
+                    uid: "user3",
+                    email: "user3@example.com",
+                    role: "client",
+                    isActive: true,
+                },
+                {
+                    uid: "user4",
+                    email: "user4@example.com",
+                    role: "client",
+                    isActive: true,
+                },
             ];
 
             mockCollectionGet.mockResolvedValue({
@@ -717,13 +747,18 @@ describe("Firestore Utility", () => {
 
             expect(result.users).toHaveLength(2);
             expect(result.total).toBe(4);
-            expect(result.users[0].uid).toBe("user2");
-            expect(result.users[1].uid).toBe("user3");
+            expect(result.users[0]?.uid).toBe("user2");
+            expect(result.users[1]?.uid).toBe("user3");
         });
 
         test("should sort by specified field and order", async () => {
             const mockUsers = [
-                { uid: "user1", email: "user1@example.com", role: "client", isActive: true },
+                {
+                    uid: "user1",
+                    email: "user1@example.com",
+                    role: "client",
+                    isActive: true,
+                },
             ];
 
             mockCollectionGet.mockResolvedValue({

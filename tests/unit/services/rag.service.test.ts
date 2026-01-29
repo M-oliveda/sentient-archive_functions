@@ -512,9 +512,9 @@ describe("RAG Service", () => {
         test("should handle non-Error thrown objects", async () => {
             mockCollectionGet.mockRejectedValue("String error");
 
-            await expect(
-                ragService.retrieveNotes("user-123", "test", 5),
-            ).rejects.toBe("String error");
+            await expect(ragService.retrieveNotes("user-123", "test", 5)).rejects.toBe(
+                "String error",
+            );
         });
 
         test("should exclude notes below minimum relevance score", async () => {

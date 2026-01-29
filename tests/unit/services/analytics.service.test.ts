@@ -6,10 +6,38 @@ import { describe, test, expect, jest, beforeAll, beforeEach } from "@jest/globa
 
 // Mock Firestore data
 const mockUsersData = [
-    { uid: "user1", role: "client", isActive: true, tokenBalance: 100, totalTokensGranted: 150, totalTokensSpent: 50 },
-    { uid: "user2", role: "client", isActive: true, tokenBalance: 200, totalTokensGranted: 300, totalTokensSpent: 100 },
-    { uid: "user3", role: "admin", isActive: true, tokenBalance: 500, totalTokensGranted: 500, totalTokensSpent: 0 },
-    { uid: "user4", role: "client", isActive: false, tokenBalance: 0, totalTokensGranted: 50, totalTokensSpent: 50 },
+    {
+        uid: "user1",
+        role: "client",
+        isActive: true,
+        tokenBalance: 100,
+        totalTokensGranted: 150,
+        totalTokensSpent: 50,
+    },
+    {
+        uid: "user2",
+        role: "client",
+        isActive: true,
+        tokenBalance: 200,
+        totalTokensGranted: 300,
+        totalTokensSpent: 100,
+    },
+    {
+        uid: "user3",
+        role: "admin",
+        isActive: true,
+        tokenBalance: 500,
+        totalTokensGranted: 500,
+        totalTokensSpent: 0,
+    },
+    {
+        uid: "user4",
+        role: "client",
+        isActive: false,
+        tokenBalance: 0,
+        totalTokensGranted: 50,
+        totalTokensSpent: 50,
+    },
 ];
 
 const mockTransactionsData = [
@@ -22,9 +50,9 @@ const mockTransactionsData = [
 ];
 
 // Mock Firestore
-const mockUsersGet = jest.fn();
-const mockNotesCountGet = jest.fn();
-const mockTransactionsGet = jest.fn();
+const mockUsersGet = jest.fn<() => Promise<unknown>>();
+const mockNotesCountGet = jest.fn<() => Promise<unknown>>();
+const mockTransactionsGet = jest.fn<() => Promise<unknown>>();
 
 const mockDb = {
     collection: jest.fn((name: string) => {

@@ -19,11 +19,15 @@ process.env["GCLOUD_PROJECT"] = "demo-sentient-archive";
 jest.setTimeout(30000);
 
 beforeAll(() => {
+    // eslint-disable-next-line no-console -- integration tests
     console.log("🔥 Integration tests starting...");
+    // eslint-disable-next-line no-console -- integration tests
     console.log(`   Firestore: ${process.env["FIRESTORE_EMULATOR_HOST"]}`);
+    // eslint-disable-next-line no-console -- integration tests
     console.log(`   Auth: ${process.env["FIREBASE_AUTH_EMULATOR_HOST"]}`);
 });
 
 afterAll(() => {
+    // eslint-disable-next-line no-console -- integration tests
     console.log("✅ Integration tests complete");
 });

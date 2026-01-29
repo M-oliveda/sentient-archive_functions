@@ -11,7 +11,7 @@ interface MockConfigDoc {
 }
 
 interface MockFirestoreTransaction {
-    get: jest.Mock<(ref: unknown) => Promise<MockConfigDoc>>;
+    get: jest.Mock<() => Promise<MockConfigDoc>>;
     set: jest.Mock;
 }
 
@@ -234,7 +234,9 @@ describe("Config Service", () => {
             };
 
             const mockTransaction: MockFirestoreTransaction = {
-                get: jest.fn().mockResolvedValue(createMockConfigDoc(true, existingConfig)),
+                get: jest
+                    .fn<() => Promise<MockConfigDoc>>()
+                    .mockResolvedValue(createMockConfigDoc(true, existingConfig)),
                 set: jest.fn(),
             };
 
@@ -246,7 +248,7 @@ describe("Config Service", () => {
                 features: {
                     summarizeEnabled: false,
                 },
-            };
+            } as Parameters<typeof configService.updateConfig>[0];
 
             const result = await configService.updateConfig(updates, "admin-456");
 
@@ -263,7 +265,9 @@ describe("Config Service", () => {
 
         test("should create config if it does not exist", async () => {
             const mockTransaction: MockFirestoreTransaction = {
-                get: jest.fn().mockResolvedValue(createMockConfigDoc(false)),
+                get: jest
+                    .fn<() => Promise<MockConfigDoc>>()
+                    .mockResolvedValue(createMockConfigDoc(false)),
                 set: jest.fn(),
             };
 
@@ -275,7 +279,7 @@ describe("Config Service", () => {
                 ai: {
                     model: "new-model",
                 },
-            };
+            } as Parameters<typeof configService.updateConfig>[0];
 
             const result = await configService.updateConfig(updates, "admin-789");
 
@@ -294,7 +298,9 @@ describe("Config Service", () => {
             };
 
             const mockTransaction: MockFirestoreTransaction = {
-                get: jest.fn().mockResolvedValue(createMockConfigDoc(true, existingConfig)),
+                get: jest
+                    .fn<() => Promise<MockConfigDoc>>()
+                    .mockResolvedValue(createMockConfigDoc(true, existingConfig)),
                 set: jest.fn(),
             };
 
@@ -320,8 +326,11 @@ describe("Config Service", () => {
         test("should handle transaction errors", async () => {
             mockRunTransaction.mockRejectedValue(new Error("Transaction failed"));
 
+            const updates = { ai: { model: "test" } } as Parameters<
+                typeof configService.updateConfig
+            >[0];
             await expect(
-                configService.updateConfig({ ai: { model: "test" } }, "admin-123"),
+                configService.updateConfig(updates, "admin-123"),
             ).rejects.toMatchObject({
                 code: "INTERNAL_ERROR",
                 statusCode: 500,
@@ -334,8 +343,11 @@ describe("Config Service", () => {
                 new AppError("NOT_FOUND", 404, "Test error"),
             );
 
+            const updates = { ai: { model: "test" } } as Parameters<
+                typeof configService.updateConfig
+            >[0];
             await expect(
-                configService.updateConfig({ ai: { model: "test" } }, "admin-123"),
+                configService.updateConfig(updates, "admin-123"),
             ).rejects.toMatchObject({
                 code: "NOT_FOUND",
                 statusCode: 404,
@@ -345,8 +357,11 @@ describe("Config Service", () => {
         test("should handle non-Error thrown objects in updateConfig", async () => {
             mockRunTransaction.mockRejectedValue("String error");
 
+            const updates = { ai: { model: "test" } } as Parameters<
+                typeof configService.updateConfig
+            >[0];
             await expect(
-                configService.updateConfig({ ai: { model: "test" } }, "admin-123"),
+                configService.updateConfig(updates, "admin-123"),
             ).rejects.toMatchObject({
                 code: "INTERNAL_ERROR",
                 statusCode: 500,
@@ -367,7 +382,9 @@ describe("Config Service", () => {
             };
 
             const mockTransaction: MockFirestoreTransaction = {
-                get: jest.fn().mockResolvedValue(createMockConfigDoc(true, existingConfig)),
+                get: jest
+                    .fn<() => Promise<MockConfigDoc>>()
+                    .mockResolvedValue(createMockConfigDoc(true, existingConfig)),
                 set: jest.fn(),
             };
 
@@ -382,7 +399,7 @@ describe("Config Service", () => {
                         summarize: 10,
                     },
                 },
-            };
+            } as Parameters<typeof configService.updateConfig>[0];
 
             const result = await configService.updateConfig(updates, "admin-123");
 

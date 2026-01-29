@@ -97,7 +97,9 @@ describe("Admin Routes", () => {
             const stack = adminRouter.stack as RouterLayer[];
 
             // Check for middleware layers (they don't have route property)
-            const middlewareLayers = stack.filter((layer) => !layer.route && layer.name);
+            const middlewareLayers = stack.filter(
+                (layer) => !layer.route && layer.name,
+            );
 
             // Should have at least authMiddleware and adminMiddleware
             expect(middlewareLayers.length).toBeGreaterThanOrEqual(2);

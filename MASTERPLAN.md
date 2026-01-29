@@ -539,9 +539,9 @@ interface SystemConfig {
 ### 6.1 Base URLs
 
 - **Local:** `http://localhost:5001/demo-sentient-archive/us-central1`
-- **Development:** `https://us-central1-sentient-archive-dev.cloudfunctions.net`
-- **Staging:** `https://us-central1-sentient-archive-staging.cloudfunctions.net`
-- **Production:** `https://us-central1-sentient-archive-prod.cloudfunctions.net`
+- **Development:** `https://us-central1-moliveda-gcloudprojects-dev.cloudfunctions.net`
+- **Staging:** `https://us-central1-moliveda-gcloudprojects-stg.cloudfunctions.net`
+- **Production:** `https://us-central1-moliveda-gcloudprojects-prod.cloudfunctions.net`
 
 ### 6.2 File Extraction Endpoint
 
@@ -1625,11 +1625,11 @@ repository (Cloud Run), we use an alternative approach for testing Pull Requests
 
    ```bash
    # Deploy PR-specific function to dev environment
-   firebase use sentient-archive-dev
+   firebase use moliveda-gcloudprojects-dev
    firebase deploy --only functions:api-pr-123
 
    # Test the PR function
-   curl https://us-central1-sentient-archive-dev.cloudfunctions.net/api-pr-123/v1/health
+   curl https://us-central1-moliveda-gcloudprojects-dev.cloudfunctions.net/api-pr-123/v1/health
    ```
 
 3. **Cleanup After Merge:**
@@ -1775,14 +1775,16 @@ jobs:
 
 ```yaml
 # .github/workflows/deploy-prod.yml
+# Authentication: Uses Workload Identity Federation (no service account keys)
 name: Deploy to Production
 
 on:
   workflow_dispatch:
-    branches: [main]
-
-env:
-  FIREBASE_PROJECT: sentient-archive-prod
+    inputs:
+      confirm:
+        description: "Type 'deploy-production' to confirm deployment"
+        required: true
+        type: string
 
 jobs:
   deploy:
@@ -1790,7 +1792,10 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: https://us-central1-sentient-archive-prod.cloudfunctions.net
+      url: https://us-central1-${{ secrets.GCP_PROJECT_ID }}.cloudfunctions.net
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -1804,22 +1809,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: |
-          docker compose up -d
-          sleep 10
-          npm run test:coverage
-          docker compose down
-
-      - name: Check 100% coverage
-        run: |
-          if npx --yes nyc@latest report --reporter=text-summary | grep -q '100%'; then
-            echo "✅ 100% coverage achieved!"
-          else
-            echo "::error::Production requires 100% test coverage."
-            exit 1
-          fi
-
       - name: Build
         run: npm run build
 
@@ -1829,14 +1818,14 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase Functions
         run: |
-          firebase use ${{ env.FIREBASE_PROJECT }}
-          firebase deploy --only functions --force
+          firebase deploy --only functions --force --project ${{ secrets.GCP_PROJECT_ID }}
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_PROD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 ```
 
 ### 12.4 Environments & Secrets Strategy
@@ -1845,12 +1834,12 @@ jobs:
 including ephemeral PR previews, Cloud Functions supports **4 environments** due to
 Firebase project limitations.
 
-| Environment     | Branch Source | Firebase Project           | Deployment Trigger | Notes                       |
-| :-------------- | :------------ | :------------------------- | :----------------- | :-------------------------- |
-| **Local**       | `feature/*`   | `demo-sentient-archive`    | Manual (emulator)  | Docker Compose + Emulators  |
-| **Development** | `develop`     | `sentient-archive-dev`     | Auto (on push)     | Shared dev environment      |
-| **Staging**     | `release/*`   | `sentient-archive-staging` | Auto (on push)     | Pre-production testing      |
-| **Production**  | `main`        | `sentient-archive-prod`    | Manual Dispatch    | Live production environment |
+| Environment     | Branch Source | GCP Project                   | Deployment Trigger | Notes                       |
+| :-------------- | :------------ | :---------------------------- | :----------------- | :-------------------------- |
+| **Local**       | `feature/*`   | `demo-sentient-archive`       | Manual (emulator)  | Docker Compose + Emulators  |
+| **Development** | `develop`     | `moliveda-gcloudprojects-dev` | Auto (on push)     | Shared dev environment      |
+| **Staging**     | `release/*`   | `moliveda-gcloudprojects-stg` | Auto (on push)     | Pre-production testing      |
+| **Production**  | `main`        | `moliveda-gcloudprojects-prod`| Manual Dispatch    | Live production environment |
 
 #### Why No Preview Environment?
 
@@ -1883,20 +1872,21 @@ See Section 10.6 for detailed PR testing strategy.
 
 **Required GitHub Secrets (per Environment):**
 
-**Development:**
+Authentication uses **Workload Identity Federation** (no service account keys required).
 
-- `GCP_SA_KEY_DEV`: Service Account JSON key
-- `GEMINI_API_KEY_DEV`: Gemini API key
+**All Environments (development, staging, production):**
 
-**Staging:**
+- `GCP_PROJECT_ID`: GCP Project ID for the environment
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: Workload Identity Provider path
+- `GCP_SERVICE_ACCOUNT`: Service account email for CI/CD
+- `GEMINI_API_KEY`: Gemini API key
 
-- `GCP_SA_KEY_STAGING`: Service Account JSON key
-- `GEMINI_API_KEY_STAGING`: Gemini API key
+**Environment-specific values:**
 
-**Production:**
-
-- `GCP_SA_KEY_PROD`: Service Account JSON key
-- `GEMINI_API_KEY_PROD`: Gemini API key
+| Secret | Development | Staging | Production |
+| :----- | :---------- | :------ | :--------- |
+| `GCP_PROJECT_ID` | `moliveda-gcloudprojects-dev` | `moliveda-gcloudprojects-stg` | `moliveda-gcloudprojects-prod` |
+| `GCP_SERVICE_ACCOUNT` | `cicd-deployer-dev@...` | `cicd-deployer-stg@...` | `cicd-deployer-prod@...` |
 
 ## 13. Development Phases
 

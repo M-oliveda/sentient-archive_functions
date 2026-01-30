@@ -87,7 +87,7 @@ app.use(errorHandler);
  * Handles all HTTP requests to the SentientArchive API
  * Routes are defined in the Express app above
  */
-export const api = onRequest(
+export const sentientArchiveApi = onRequest(
     {
         cors: true,
         invoker: "public",

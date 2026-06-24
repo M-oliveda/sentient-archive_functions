@@ -106,6 +106,29 @@ describe("Firestore Utility", () => {
             expect(db).toBeDefined();
             expect(getFirestore).toHaveBeenCalled();
         });
+
+        test("should initialize Firebase with projectId when GCLOUD_PROJECT is set", () => {
+            process.env["GCLOUD_PROJECT"] = "test-project";
+            const db = getDb();
+
+            expect(db).toBeDefined();
+            expect(mockInitializeApp).toHaveBeenCalledWith({
+                projectId: "test-project",
+            });
+
+            delete process.env["GCLOUD_PROJECT"];
+        });
+
+        test("should initialize Firebase without projectId when GCLOUD_PROJECT is not set", () => {
+            // Ensure GCLOUD_PROJECT is not set
+            delete process.env["GCLOUD_PROJECT"];
+            mockGetApps.mockReturnValueOnce([]);
+
+            const db = getDb();
+
+            expect(db).toBeDefined();
+            expect(mockInitializeApp).toHaveBeenCalledWith(undefined);
+        });
     });
 
     describe("getFirebaseAuth", () => {

@@ -17,7 +17,11 @@ import { logError } from "./logger.js";
  */
 function initializeFirebase(): void {
     if (getApps().length === 0) {
-        initializeApp();
+        const options = process.env["GCLOUD_PROJECT"]
+            ? { projectId: process.env["GCLOUD_PROJECT"] }
+            : undefined;
+
+        initializeApp(options);
     }
 }
 

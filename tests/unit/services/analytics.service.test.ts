@@ -81,7 +81,9 @@ const mockDb = {
 jest.unstable_mockModule("firebase-admin/app", () => ({
     __esModule: true,
     initializeApp: jest.fn(),
-    getApps: jest.fn(() => []),
+    getApp: jest.fn(() => {
+        throw new Error("No Firebase app initialized");
+    }),
 }));
 
 jest.unstable_mockModule("firebase-admin/firestore", () => ({

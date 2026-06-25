@@ -32,13 +32,15 @@ const mockGetFirestore = jest.fn(() => ({
 
 // Define mock for Firebase App
 const mockInitializeApp = jest.fn();
-const mockGetApps = jest.fn(() => []);
+const mockGetApp = jest.fn(() => {
+    throw new Error("No Firebase app initialized");
+});
 
 // Configure ESM mocks for External Libraries
 jest.unstable_mockModule("firebase-admin/app", () => ({
     __esModule: true,
     initializeApp: mockInitializeApp,
-    getApps: mockGetApps,
+    getApp: mockGetApp,
 }));
 
 jest.unstable_mockModule("firebase-admin/auth", () => ({
@@ -106,7 +108,9 @@ describe("Auth Middleware", () => {
         jest.clearAllMocks();
 
         // Ensure default mock behavior
-        mockGetApps.mockReturnValue([]);
+        mockGetApp.mockImplementation(() => {
+            throw new Error("No Firebase app initialized");
+        });
         mockGetAuth.mockClear();
         mockGetFirestore.mockClear();
     });

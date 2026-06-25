@@ -5,23 +5,21 @@
  * Provides database connection and common queries
  */
 
-import { initializeApp, getApps } from "firebase-admin/app";
+import { initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
 import { User } from "@/types/user.js";
 import { logError } from "./logger.js";
 
-/**
- * Initialize Firebase Admin SDK
- * Only initializes once (singleton pattern)
- */
 function initializeFirebase(): void {
-    if (getApps().length === 0) {
-        const options = process.env["GCLOUD_PROJECT"]
-            ? { projectId: process.env["GCLOUD_PROJECT"] }
-            : undefined;
-
-        initializeApp(options);
+    try {
+        getApp(); // throws if the default app does not exist
+    } catch {
+        initializeApp(
+            process.env["GCLOUD_PROJECT"]
+                ? { projectId: process.env["GCLOUD_PROJECT"] }
+                : undefined,
+        );
     }
 }
 

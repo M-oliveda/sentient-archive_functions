@@ -6,10 +6,14 @@
  */
 
 import { onRequest } from "firebase-functions/v2/https";
+import { beforeUserCreated } from "firebase-functions/v2/identity";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { Timestamp } from "firebase-admin/firestore";
 import express, { Request, Response } from "express";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-import { logInfo } from "./utils/logger.js";
+import { logInfo, logError } from "./utils/logger.js";
+import { saveUser } from "./utils/firestore.js";
+import { User } from "./types/user.js";
 import notesRouter from "./routes/notes.routes.js";
 import tokensRouter from "./routes/tokens.routes.js";
 import aiRouter from "./routes/ai.routes.js";
@@ -94,3 +98,48 @@ export const sentientArchiveApi = onRequest(
     },
     app,
 );
+
+/**
+ * Auth trigger: create Firestore user profile on signup
+ *
+ * Fires before the user record is committed to Firebase Auth, so the
+ * document exists by the time createUserWithEmailAndPassword resolves
+ * on the client and waitForUserProfile starts polling.
+ */
+export const createUserProfile = beforeUserCreated(async (event) => {
+    if (!event.data) return;
+    const { uid, email, displayName, photoURL } = event.data;
+
+    const now = Timestamp.now();
+    const newUser: User = {
+        uid,
+        email: email ?? "",
+        displayName: displayName ?? null,
+        photoURL: photoURL ?? null,
+        role: "client",
+        isActive: true,
+        tokenBalance: 0,
+        totalTokensGranted: 0,
+        totalTokensSpent: 0,
+        createdAt: now,
+        lastLoginAt: now,
+        updatedAt: now,
+        preferences: {
+            language: "en",
+            theme: "light",
+            notificationsEnabled: true,
+        },
+    };
+
+    try {
+        await saveUser(uid, newUser);
+        logInfo("User profile created", { uid });
+    } catch (error) {
+        logError(
+            "Failed to create user profile",
+            error instanceof Error ? error : undefined,
+            { uid },
+        );
+        throw error;
+    }
+});

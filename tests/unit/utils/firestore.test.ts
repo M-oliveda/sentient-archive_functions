@@ -35,13 +35,15 @@ const mockGetFirestore = jest.fn(() => ({
 
 const mockGetAuth = jest.fn(() => ({}));
 const mockInitializeApp = jest.fn();
-const mockGetApps = jest.fn(() => []);
+const mockGetApp = jest.fn(() => {
+    throw new Error("No Firebase app initialized");
+});
 
 // Configure ESM mocks
 jest.unstable_mockModule("firebase-admin/app", () => ({
     __esModule: true,
     initializeApp: mockInitializeApp,
-    getApps: mockGetApps,
+    getApp: mockGetApp,
     applicationDefault: jest.fn(),
     cert: jest.fn(),
 }));
@@ -93,7 +95,9 @@ describe("Firestore Utility", () => {
         mockRunTransaction.mockReset();
 
         // Restore default behavior locally if changed in tests
-        mockGetApps.mockReturnValue([]);
+        mockGetApp.mockImplementation(() => {
+            throw new Error("No Firebase app initialized");
+        });
         mockGetFirestore.mockClear();
         // Note: mockGetFirestore implementation is fixed in the factory to return the object tree,
         // which is fine as strict functional mocks usually just call the function.
@@ -122,7 +126,6 @@ describe("Firestore Utility", () => {
         test("should initialize Firebase without projectId when GCLOUD_PROJECT is not set", () => {
             // Ensure GCLOUD_PROJECT is not set
             delete process.env["GCLOUD_PROJECT"];
-            mockGetApps.mockReturnValueOnce([]);
 
             const db = getDb();
 

@@ -13,7 +13,6 @@ on:
 
 env:
   NODE_VERSION: "24"
-  FIREBASE_TOOLS_VERSION: "15.22.2"
 
 jobs:
   test:
@@ -85,7 +84,7 @@ jobs:
         run: npm ci
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }}
+        run: npm install -g firebase-tools
 
       - name: Build
         run: npm run build
@@ -137,7 +136,7 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools@${{ env.FIREBASE_TOOLS_VERSION }}
+        run: npm install -g firebase-tools
 
       - name: Deploy to Firebase (Functions, Firestore)
         run: |

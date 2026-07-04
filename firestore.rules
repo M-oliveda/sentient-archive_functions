@@ -20,9 +20,13 @@ service cloud.firestore {
     match /users/{userId} {
       // Users can read their own profile, admins can read all
       allow read: if isOwner(userId) || isAdmin();
-      
-      // Only admins can create/update/delete users
-      allow create, update, delete: if isAdmin();
+
+      // Users can create their own document (initial sign-up via client SDK);
+      // role is forced to "client" to prevent privilege escalation
+      allow create: if isOwner(userId) && request.resource.data.role == "client";
+
+      // Only admins can update or delete user documents
+      allow update, delete: if isAdmin();
 
       // User's notes subcollection
       match /notes/{noteId} {

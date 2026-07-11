@@ -35,8 +35,8 @@
     "emulators:stop": "docker compose down",
     "emulators:logs": "docker compose logs -f",
     "emulators:rebuild": "docker compose down && docker compose build --no-cache && docker compose up -d",
-    "emulators:reset": "docker compose down -v && rm -rf firebase/emulator-data/* && docker compose up -d",
-    "emulators:export": "docker compose exec firebase-emulators firebase emulators:export /app/firebase/seed --project demo-sentient-archive --force"
+    "emulators:reset": "docker compose down -v && rm -rf firebase/seed/* && docker compose up -d",
+    "emulators:export": "docker compose exec firebase-emulators /app/sync-seed-export.sh"
   },
   "keywords": [
     "firebase",
@@ -58,6 +58,11 @@
     "pdf-parse": "^1.1.1",
     "smol-toml": "^1.6.0",
     "zod": "^3.24.1"
+  },
+  "overrides": {
+    "undici": ">=6.27.0",
+    "ts-deepmerge": ">=8.0.0",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

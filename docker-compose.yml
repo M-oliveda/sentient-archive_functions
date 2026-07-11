@@ -6,6 +6,7 @@ services:
       context: ./firebase
       dockerfile: Dockerfile
     container_name: firebase-emulators
+    stop_grace_period: 30s
     ports:
       - "4000:4000" # Emulator UI
       - "4500:4500" # Emulator UI WebSocket
@@ -31,7 +32,9 @@ services:
       - ./tsconfig.build.json:/app/tsconfig.build.json:ro
 
       # Persistent emulator data (import/export)
-      - ./firebase/seed-data:/app/seed-data:rw
+      - ./firebase/seed:/app/seed:rw
+      - ./firebase/start-emulators.sh:/app/start-emulators.sh:ro
+      - ./firebase/sync-seed-export.sh:/app/sync-seed-export.sh:ro
 
       # Node modules volume for performance
       - firebase_node_modules:/app/node_modules
@@ -66,9 +69,7 @@ services:
         npm run build
         
         echo "Starting Firebase Emulators..."
-        # If seed-data folder is empty, Firebase will just warn and start clean.
-        # Once you shut down, it will populate this folder for the next run.
-        firebase emulators:start --import=./seed-data --export-on-exit --project demo-sentient-archive
+        ./start-emulators.sh
 
 volumes:
   firebase_node_modules:

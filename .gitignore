@@ -58,8 +58,8 @@ yarn-error.log*
 .cache/
 
 # Docker
-firebase/emulator-data/
-!firebase/emulator-data/.gitkeep
+firebase/seed/*
+!firebase/seed/.gitkeep
 
 # Husky
 .husky/_/

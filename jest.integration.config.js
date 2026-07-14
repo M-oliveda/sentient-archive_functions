@@ -23,7 +23,10 @@ export default {
         ],
     },
     // Only run integration tests
-    testMatch: ["**/tests/integration/**/*.test.ts", "**/tests/integration/**/*.spec.ts"],
+    testMatch: [
+        "**/tests/integration/**/*.test.ts",
+        "**/tests/integration/**/*.spec.ts",
+    ],
     // Integration tests setup
     setupFilesAfterEnv: ["<rootDir>/tests/integration/setup.ts"],
     // Longer timeout for integration tests (30 seconds)

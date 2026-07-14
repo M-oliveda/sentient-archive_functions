@@ -96,6 +96,18 @@ describe("AI Routes Integration Tests", () => {
         firebaseApp = initializeApp({ projectId: "demo-sentient-archive" });
         db = getFirestore(firebaseApp);
 
+        // Clean up any stale notes from previous test runs
+        const staleNotes = await db
+            .collection("users")
+            .doc(TEST_USER_ID)
+            .collection("notes")
+            .get();
+        if (!staleNotes.empty) {
+            const batch = db.batch();
+            staleNotes.docs.forEach((doc) => batch.delete(doc.ref));
+            await batch.commit();
+        }
+
         // Create user document in Firestore
         await db
             .collection("users")
@@ -371,40 +383,42 @@ describe("AI Routes Integration Tests", () => {
                 .doc(testNoteId)
                 .delete();
 
-            const response = await request(expressApp)
-                .post("/v1/ai/ragQuery")
-                .set("Authorization", "Bearer test-token")
-                .send({ query: "What is machine learning?" });
+            try {
+                const response = await request(expressApp)
+                    .post("/v1/ai/ragQuery")
+                    .set("Authorization", "Bearer test-token")
+                    .send({ query: "What is machine learning?" });
 
-            expect(response.status).toBe(400);
-            expect((response.body as { error: { code: string } }).error.code).toBe(
-                "NO_CONTEXT",
-            );
-
-            // Restore the test note
-            await db
-                .collection("users")
-                .doc(TEST_USER_ID)
-                .collection("notes")
-                .doc(testNoteId)
-                .set({
-                    id: testNoteId,
-                    userId: TEST_USER_ID,
-                    title: TEST_NOTE.title,
-                    content: TEST_NOTE.content,
-                    excerpt: TEST_NOTE.content.substring(0, 200),
-                    folderId: null,
-                    tags: ["machine-learning"],
-                    aiTags: [],
-                    summary: null,
-                    flashcards: null,
-                    createdAt: Timestamp.now(),
-                    updatedAt: Timestamp.now(),
-                    viewedAt: Timestamp.now(),
-                    isPinned: false,
-                    isArchived: false,
-                    sourceFile: null,
-                });
+                expect(response.status).toBe(400);
+                expect((response.body as { error: { code: string } }).error.code).toBe(
+                    "NO_CONTEXT",
+                );
+            } finally {
+                // Always restore the test note so subsequent tests can rely on it
+                await db
+                    .collection("users")
+                    .doc(TEST_USER_ID)
+                    .collection("notes")
+                    .doc(testNoteId)
+                    .set({
+                        id: testNoteId,
+                        userId: TEST_USER_ID,
+                        title: TEST_NOTE.title,
+                        content: TEST_NOTE.content,
+                        excerpt: TEST_NOTE.content.substring(0, 200),
+                        folderId: null,
+                        tags: ["machine-learning"],
+                        aiTags: [],
+                        summary: null,
+                        flashcards: null,
+                        createdAt: Timestamp.now(),
+                        updatedAt: Timestamp.now(),
+                        viewedAt: Timestamp.now(),
+                        isPinned: false,
+                        isArchived: false,
+                        sourceFile: null,
+                    });
+            }
         });
 
         test("should return NO_CONTEXT when query has no matching keywords", async () => {

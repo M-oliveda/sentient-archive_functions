@@ -239,15 +239,9 @@ router.put(
         // Serialize for response
         const serializedUser = {
             ...updatedUser,
-            createdAt:
-                updatedUser.createdAt?.toDate?.()?.toISOString() ??
-                (updatedUser.createdAt as unknown as string),
-            lastLoginAt:
-                updatedUser.lastLoginAt?.toDate?.()?.toISOString() ??
-                (updatedUser.lastLoginAt as unknown as string),
-            updatedAt:
-                updatedUser.updatedAt?.toDate?.()?.toISOString() ??
-                (updatedUser.updatedAt as unknown as string),
+            createdAt: updatedUser.createdAt?.toDate?.()?.toISOString() ?? null,
+            lastLoginAt: updatedUser.lastLoginAt?.toDate?.()?.toISOString() ?? null,
+            updatedAt: updatedUser.updatedAt?.toDate?.()?.toISOString() ?? null,
         };
 
         const response: ApiResponse<typeof serializedUser> = {

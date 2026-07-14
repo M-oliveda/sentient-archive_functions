@@ -104,21 +104,11 @@ export class TokenService {
             query = query.where("type", "==", type);
         }
 
-        // Apply pagination
-        const snapshot = await query.limit(limit + offset).get();
+        const snapshot = await query.offset(offset).limit(limit).get();
 
-        // Skip offset records and return limit records
         const transactions: Transaction[] = [];
-        let skipped = 0;
-
         snapshot.forEach((doc) => {
-            if (skipped < offset) {
-                skipped++;
-                return;
-            }
-            if (transactions.length < limit) {
-                transactions.push(doc.data() as Transaction);
-            }
+            transactions.push(doc.data() as Transaction);
         });
 
         return transactions;

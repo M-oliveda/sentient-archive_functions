@@ -51,6 +51,7 @@ const createMockUserDoc = (
 interface MockQueryChain {
     where: jest.Mock<() => MockQueryChain>;
     orderBy: jest.Mock<() => MockQueryChain>;
+    offset: jest.Mock<() => MockQueryChain>;
     limit: jest.Mock<() => MockQueryChain>;
     get: typeof mockCollectionGet;
 }
@@ -59,6 +60,7 @@ const createQueryChain = (): MockQueryChain => {
     const chain: MockQueryChain = {
         where: jest.fn(() => chain),
         orderBy: jest.fn(() => chain),
+        offset: jest.fn(() => chain),
         limit: jest.fn(() => chain),
         get: mockCollectionGet,
     };
@@ -86,6 +88,7 @@ const mockDb = {
                 doc: jest.fn(() => mockTransactionRef),
                 where: mockQueryChain.where,
                 orderBy: mockQueryChain.orderBy,
+                offset: mockQueryChain.offset,
                 limit: mockQueryChain.limit,
                 get: mockCollectionGet,
             };
@@ -162,6 +165,7 @@ describe("Token Service", () => {
         // Reset query chain
         mockQueryChain.where.mockReturnValue(mockQueryChain);
         mockQueryChain.orderBy.mockReturnValue(mockQueryChain);
+        mockQueryChain.offset.mockReturnValue(mockQueryChain);
         mockQueryChain.limit.mockReturnValue(mockQueryChain);
     });
 
@@ -248,7 +252,8 @@ describe("Token Service", () => {
 
             await tokenService.getHistory("user-123", { limit: 10, offset: 5 });
 
-            expect(mockQueryChain.limit).toHaveBeenCalledWith(15); // limit + offset
+            expect(mockQueryChain.offset).toHaveBeenCalledWith(5);
+            expect(mockQueryChain.limit).toHaveBeenCalledWith(10);
         });
 
         test("should filter by transaction type", async () => {
@@ -261,13 +266,10 @@ describe("Token Service", () => {
             expect(mockQueryChain.where).toHaveBeenCalledWith("type", "==", "grant");
         });
 
-        test("should skip offset records correctly", async () => {
+        test("should delegate offset to Firestore and return all docs in snapshot", async () => {
             const mockTransactions = [
-                { id: "tx1", data: () => ({ id: "tx1" }) },
-                { id: "tx2", data: () => ({ id: "tx2" }) },
                 { id: "tx3", data: () => ({ id: "tx3" }) },
                 { id: "tx4", data: () => ({ id: "tx4" }) },
-                { id: "tx5", data: () => ({ id: "tx5" }) },
             ];
 
             mockCollectionGet.mockResolvedValue({
@@ -281,6 +283,8 @@ describe("Token Service", () => {
                 offset: 2,
             });
 
+            expect(mockQueryChain.offset).toHaveBeenCalledWith(2);
+            expect(mockQueryChain.limit).toHaveBeenCalledWith(2);
             expect(history).toHaveLength(2);
             expect(history[0]).toEqual({ id: "tx3" });
             expect(history[1]).toEqual({ id: "tx4" });

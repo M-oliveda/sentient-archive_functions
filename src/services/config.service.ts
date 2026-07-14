@@ -91,16 +91,13 @@ const DEFAULT_CONFIG: Omit<SystemConfig, "createdAt" | "lastUpdatedAt"> = {
 /**
  * Deep merge two objects
  */
-function deepMerge<T extends Record<string, unknown>>(
-    target: T,
-    source: Partial<T>,
-): T {
-    const result = { ...target };
+function deepMerge<T extends object>(target: T, source: Partial<T>): T {
+    const result: Record<string, unknown> = { ...(target as Record<string, unknown>) };
 
     for (const key in source) {
         if (Object.prototype.hasOwnProperty.call(source, key)) {
-            const sourceValue = source[key];
-            const targetValue = target[key];
+            const sourceValue = source[key as keyof typeof source];
+            const targetValue = (target as Record<string, unknown>)[key];
 
             if (
                 sourceValue !== null &&
@@ -110,17 +107,17 @@ function deepMerge<T extends Record<string, unknown>>(
                 typeof targetValue === "object" &&
                 !Array.isArray(targetValue)
             ) {
-                (result as Record<string, unknown>)[key] = deepMerge(
+                result[key] = deepMerge(
                     targetValue as Record<string, unknown>,
                     sourceValue as Record<string, unknown>,
                 );
             } else if (sourceValue !== undefined) {
-                (result as Record<string, unknown>)[key] = sourceValue;
+                result[key] = sourceValue as unknown;
             }
         }
     }
 
-    return result;
+    return result as T;
 }
 
 /**
@@ -225,9 +222,9 @@ export class ConfigService {
 
                 // Deep merge the updates
                 const newConfig = deepMerge(
-                    currentConfig as unknown as Record<string, unknown>,
-                    safeUpdates as Record<string, unknown>,
-                ) as unknown as SystemConfig;
+                    currentConfig,
+                    safeUpdates as Partial<SystemConfig>,
+                );
 
                 // Update metadata
                 newConfig.version = currentConfig.version + 1;

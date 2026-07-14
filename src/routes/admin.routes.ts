@@ -15,6 +15,7 @@ import { adminMiddleware } from "@/middleware/admin.js";
 import { asyncHandler, AppError } from "@/middleware/errorHandler.js";
 import { analyticsService } from "@/services/analytics.service.js";
 import { configService } from "@/services/config.service.js";
+import { statsService, AdminStats } from "@/services/stats.service.js";
 import { listUsers, updateUserAsAdmin, getUserByUid } from "@/utils/firestore.js";
 import { logInfo, logEvent } from "@/utils/logger.js";
 import {
@@ -32,6 +33,34 @@ const router = Router();
 // All admin routes require authentication and admin role
 router.use(authMiddleware);
 router.use(adminMiddleware);
+
+/**
+ * GET /stats
+ *
+ * Get admin dashboard stats: summary counts, system health, and recent activity.
+ *
+ * Response: AdminStats
+ */
+router.get(
+    "/stats",
+    asyncHandler(async (req: Request, res: Response) => {
+        const adminId = req.uid!;
+
+        logInfo("Admin stats request", { adminId });
+
+        const stats = await statsService.getAdminStats();
+
+        logEvent("admin_stats_queried", { adminId });
+
+        const response: ApiResponse<AdminStats> = {
+            success: true,
+            data: stats,
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
 
 /**
  * GET /analytics

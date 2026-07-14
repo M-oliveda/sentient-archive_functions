@@ -44,9 +44,15 @@ jest.unstable_mockModule("firebase-admin/firestore", () => ({
             where: jest.fn(() => ({
                 get: jest.fn(),
                 orderBy: jest.fn(() => ({
-                    limit: jest.fn(() => ({
-                        get: jest.fn(),
+                    offset: jest.fn(() => ({
+                        limit: jest.fn(() => ({ get: jest.fn() })),
                     })),
+                    limit: jest.fn(() => ({ get: jest.fn() })),
+                })),
+            })),
+            orderBy: jest.fn(() => ({
+                limit: jest.fn(() => ({
+                    get: jest.fn(),
                 })),
             })),
             get: jest.fn(),
@@ -107,6 +113,14 @@ describe("Admin Routes", () => {
             expect(middlewareLayers.length).toBeGreaterThanOrEqual(2);
         });
 
+        test("router should have GET /stats route", () => {
+            const statsRoute = (adminRouter.stack as RouterLayer[]).find(
+                (layer) =>
+                    layer.route?.path === "/stats" && layer.route?.methods?.["get"],
+            );
+            expect(statsRoute).toBeDefined();
+        });
+
         test("router should have GET /analytics route", () => {
             const analyticsRoute = (adminRouter.stack as RouterLayer[]).find(
                 (layer) =>
@@ -145,6 +159,13 @@ describe("Admin Routes", () => {
                     layer.route?.path === "/config" && layer.route?.methods?.["post"],
             );
             expect(configPostRoute).toBeDefined();
+        });
+
+        test("GET /stats should have handler in stack", () => {
+            const statsRoute = (adminRouter.stack as RouterLayer[]).find(
+                (layer) => layer.route?.path === "/stats",
+            );
+            expect(statsRoute?.route?.stack?.length).toBeGreaterThan(0);
         });
 
         test("GET /analytics should have handler in stack", () => {
@@ -186,7 +207,7 @@ describe("Admin Routes", () => {
     });
 
     describe("Route count", () => {
-        test("should have exactly 5 route endpoints", () => {
+        test("should have exactly 6 route endpoints", () => {
             const routeLayers = (adminRouter.stack as RouterLayer[]).filter(
                 (layer) => layer.route,
             );
@@ -199,7 +220,7 @@ describe("Admin Routes", () => {
                 ),
             );
 
-            expect(routes.size).toBe(5);
+            expect(routes.size).toBe(6);
         });
     });
 });

@@ -13,7 +13,6 @@
     "declarationMap": true,
     "removeComments": true,
     "importHelpers": true,
-    "downlevelIteration": true,
 
     /* Interop Constraints */
     "esModuleInterop": true,
@@ -45,14 +44,13 @@
     "skipLibCheck": true,
 
     /* Path Mapping */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@/middleware/*": ["src/middleware/*"],
-      "@/routes/*": ["src/routes/*"],
-      "@/services/*": ["src/services/*"],
-      "@/utils/*": ["src/utils/*"],
-      "@/types/*": ["src/types/*"]
+      "@/*": ["./src/*"],
+      "@/middleware/*": ["./src/middleware/*"],
+      "@/routes/*": ["./src/routes/*"],
+      "@/services/*": ["./src/services/*"],
+      "@/utils/*": ["./src/utils/*"],
+      "@/types/*": ["./src/types/*"]
     }
   },
   "include": ["src/**/*", "tests/**/*", "scripts/**/*"],

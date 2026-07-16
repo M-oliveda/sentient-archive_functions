@@ -275,6 +275,40 @@ describe("File Upload Middleware", () => {
             );
         });
 
+        test("should process valid PDF upload via rawBody (Cloud Functions path)", (done) => {
+            const fileContent = Buffer.from("PDF content");
+            const boundary = "----WebKitFormBoundary";
+
+            const requestBody = [
+                `--${boundary}`,
+                'Content-Disposition: form-data; name="file"; filename="document.pdf"',
+                "Content-Type: application/pdf",
+                "",
+                fileContent.toString(),
+                `--${boundary}--`,
+            ].join("\r\n");
+
+            mockRequest.headers = {
+                "content-type": `multipart/form-data; boundary=${boundary}`,
+            };
+            (mockRequest as CustomRequest & { rawBody?: Buffer }).rawBody =
+                Buffer.from(requestBody);
+
+            mockNext = jest.fn(() => {
+                expect(mockRequest.file).toBeDefined();
+                expect(mockRequest.file?.filename).toBe("document.pdf");
+                expect(mockRequest.file?.mimeType).toBe("application/pdf");
+                expect(mockRequest.file?.buffer).toBeInstanceOf(Buffer);
+                done();
+            });
+
+            fileUploadMiddleware(
+                mockRequest as Request,
+                mockResponse as Response,
+                mockNext,
+            );
+        });
+
         test("should process text file upload", (done) => {
             const boundary = "----WebKitFormBoundary";
 

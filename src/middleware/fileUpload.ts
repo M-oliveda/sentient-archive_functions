@@ -211,8 +211,11 @@ export function fileUploadMiddleware(
             next(new AppError("INVALID_REQUEST", 400, "Failed to parse file upload"));
         });
 
-        // Pipe request to busboy
-        req.pipe(busboy);
+        if (req.rawBody) {
+            busboy.end(req.rawBody);
+        } else {
+            req.pipe(busboy);
+        }
     } catch (error) {
         next(error);
     }

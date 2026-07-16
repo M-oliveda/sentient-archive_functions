@@ -24,6 +24,7 @@ declare global {
                 mimeType: string;
                 size: number;
             };
+            rawBody?: Buffer;
         }
     }
 }

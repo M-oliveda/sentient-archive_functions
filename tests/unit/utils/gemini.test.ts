@@ -39,6 +39,9 @@ describe("Gemini Client Utility", () => {
         jest.clearAllMocks();
         MockGoogleGenerativeAI.mockClear();
 
+        // Ensure emulator flag is off so existing tests hit the real code path
+        delete process.env["FUNCTIONS_EMULATOR"];
+
         // Reset module cache to get fresh imports
         jest.resetModules();
 
@@ -150,6 +153,85 @@ describe("Gemini Client Utility", () => {
 
         test("should export DEFAULT_TEMPERATURE", () => {
             expect(DEFAULT_TEMPERATURE).toBe(1);
+        });
+    });
+
+    describe("getGenerativeModel – emulator stub", () => {
+        beforeEach(() => {
+            process.env["FUNCTIONS_EMULATOR"] = "true";
+            delete process.env["GEMINI_API_KEY"];
+        });
+
+        afterEach(() => {
+            delete process.env["FUNCTIONS_EMULATOR"];
+        });
+
+        test("returns stub without requiring GEMINI_API_KEY", () => {
+            const model = getGenerativeModel();
+            expect(model).toBeDefined();
+            expect(MockGoogleGenerativeAI).not.toHaveBeenCalled();
+        });
+
+        test("returns stub regardless of the modelName argument", () => {
+            const model = getGenerativeModel("some-other-model");
+            expect(model).toBeDefined();
+            expect(MockGoogleGenerativeAI).not.toHaveBeenCalled();
+        });
+
+        test("stub returns plain text for summarize-style requests", async () => {
+            const model = getGenerativeModel();
+            const result = await model.generateContent({
+                contents: [{ role: "user", parts: [{ text: "Summarize this note." }] }],
+            } as Parameters<typeof model.generateContent>[0]);
+            expect(typeof result.response.text()).toBe("string");
+            expect(result.response.text().length).toBeGreaterThan(0);
+        });
+
+        test("stub returns a JSON tag array for autoTag-style requests", async () => {
+            const model = getGenerativeModel();
+            const result = await model.generateContent({
+                contents: [{ role: "user", parts: [{ text: "Generate tags." }] }],
+                generationConfig: { responseMimeType: "application/json" },
+            } as Parameters<typeof model.generateContent>[0]);
+            const parsed: unknown = JSON.parse(result.response.text());
+            expect(Array.isArray(parsed)).toBe(true);
+            expect(
+                (parsed as unknown[]).every((t) => typeof t === "string"),
+            ).toBe(true);
+        });
+
+        test("stub returns a JSON flashcard array for flashcard-style requests", async () => {
+            const model = getGenerativeModel();
+            const result = await model.generateContent({
+                contents: [
+                    {
+                        role: "user",
+                        parts: [{ text: "Generate flashcards for this note." }],
+                    },
+                ],
+                generationConfig: { responseMimeType: "application/json" },
+            } as Parameters<typeof model.generateContent>[0]);
+            const parsed: unknown = JSON.parse(result.response.text());
+            expect(Array.isArray(parsed)).toBe(true);
+            const cards = parsed as Array<Record<string, unknown>>;
+            expect(cards[0]).toHaveProperty("front");
+            expect(cards[0]).toHaveProperty("back");
+        });
+
+        test("stub reports zero tokens used", async () => {
+            const model = getGenerativeModel();
+            const result = await model.generateContent({
+                contents: [{ role: "user", parts: [{ text: "Any prompt." }] }],
+            } as Parameters<typeof model.generateContent>[0]);
+            expect(result.response.usageMetadata?.totalTokenCount).toBe(0);
+        });
+
+        test("stub handles missing contents with empty prompt fallback", async () => {
+            const model = getGenerativeModel();
+            const result = await model.generateContent(
+                {} as Parameters<typeof model.generateContent>[0],
+            );
+            expect(typeof result.response.text()).toBe("string");
         });
     });
 });

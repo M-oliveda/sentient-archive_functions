@@ -121,7 +121,11 @@ router.post(
         }
 
         // Deduct tokens first
-        await tokenService.deductTokens(userId, tokenCost, "summarize");
+        const deduction = await tokenService.deductTokens(
+            userId,
+            tokenCost,
+            "summarize",
+        );
 
         // Generate summary
         const result = await aiService.summarize(userId, {
@@ -144,6 +148,7 @@ router.post(
             summary: string;
             tokensUsed: number;
             tokenCost: number;
+            balanceAfter: number;
         }> = {
             success: true,
             data: {
@@ -151,6 +156,7 @@ router.post(
                 summary: result.summary,
                 tokensUsed: result.tokensUsed,
                 tokenCost,
+                balanceAfter: deduction.newBalance,
             },
             timestamp: new Date().toISOString(),
         };
@@ -212,7 +218,7 @@ router.post(
         }
 
         // Deduct tokens first
-        await tokenService.deductTokens(userId, tokenCost, "autoTag");
+        const deduction = await tokenService.deductTokens(userId, tokenCost, "autoTag");
 
         // Generate tags
         const result = await aiService.autoTag(userId, {
@@ -236,6 +242,7 @@ router.post(
             tags: string[];
             tokensUsed: number;
             tokenCost: number;
+            balanceAfter: number;
         }> = {
             success: true,
             data: {
@@ -243,6 +250,7 @@ router.post(
                 tags: result.tags,
                 tokensUsed: result.tokensUsed,
                 tokenCost,
+                balanceAfter: deduction.newBalance,
             },
             timestamp: new Date().toISOString(),
         };
@@ -304,7 +312,11 @@ router.post(
         }
 
         // Deduct tokens first
-        await tokenService.deductTokens(userId, tokenCost, "flashcards");
+        const deduction = await tokenService.deductTokens(
+            userId,
+            tokenCost,
+            "flashcards",
+        );
 
         // Generate flashcards
         const result = await aiService.generateFlashcards(userId, {
@@ -328,6 +340,7 @@ router.post(
             flashcards: { front: string; back: string }[];
             tokensUsed: number;
             tokenCost: number;
+            balanceAfter: number;
         }> = {
             success: true,
             data: {
@@ -335,6 +348,7 @@ router.post(
                 flashcards: result.flashcards,
                 tokensUsed: result.tokensUsed,
                 tokenCost,
+                balanceAfter: deduction.newBalance,
             },
             timestamp: new Date().toISOString(),
         };
@@ -401,7 +415,11 @@ router.post(
         }
 
         // Deduct tokens first
-        await tokenService.deductTokens(userId, tokenCost, "ragQuery");
+        const deduction = await tokenService.deductTokens(
+            userId,
+            tokenCost,
+            "ragQuery",
+        );
 
         // Generate answer
         const result = await aiService.ragQuery(userId, {
@@ -424,6 +442,7 @@ router.post(
             sourceNoteIds: string[];
             tokensUsed: number;
             tokenCost: number;
+            balanceAfter: number;
         }> = {
             success: true,
             data: {
@@ -432,6 +451,7 @@ router.post(
                 sourceNoteIds: ragContext.noteIds,
                 tokensUsed: result.tokensUsed,
                 tokenCost,
+                balanceAfter: deduction.newBalance,
             },
             timestamp: new Date().toISOString(),
         };

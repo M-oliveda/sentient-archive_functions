@@ -16,10 +16,11 @@ import { logInfo, logEvent } from "@/utils/logger.js";
 import {
     TokenMintRequestSchema,
     TokenHistoryQuerySchema,
+    TokenRequestSchema,
     validateRequest,
 } from "@/utils/validation.js";
 import { ApiResponse } from "@/types/api.js";
-import { TokenBalance } from "@/types/transaction.js";
+import { TokenBalance, TokenRequest } from "@/types/transaction.js";
 
 const router = Router();
 
@@ -173,6 +174,76 @@ router.post(
         };
 
         res.status(200).json(response);
+    }),
+);
+
+/**
+ * GET /requests
+ *
+ * Get all token requests submitted by the current user
+ *
+ * Response: TokenRequest[] (serialized, newest first)
+ */
+router.get(
+    "/requests",
+    authMiddleware,
+    asyncHandler(async (req: Request, res: Response) => {
+        const userId = req.uid!;
+
+        logInfo("Token requests list", { userId });
+
+        const requests = await tokenService.getRequests(userId);
+
+        const serialized = requests.map((r) => ({
+            ...r,
+            createdAt: r.createdAt.toDate().toISOString(),
+            reviewedAt: r.reviewedAt ? r.reviewedAt.toDate().toISOString() : undefined,
+        }));
+
+        const response: ApiResponse<typeof serialized> = {
+            success: true,
+            data: serialized,
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
+
+/**
+ * POST /request
+ *
+ * Submit a token request to be reviewed by an admin
+ *
+ * Request body:
+ * - amount: number (1-10000, required)
+ *
+ * Response: TokenRequest record
+ */
+router.post(
+    "/request",
+    authMiddleware,
+    asyncHandler(async (req: Request, res: Response) => {
+        const userId = req.uid!;
+
+        const { amount } = validateRequest(TokenRequestSchema, req.body);
+
+        logInfo("Token request submitted", { userId, amount });
+
+        const tokenRequest = await tokenService.requestTokens(userId, amount);
+
+        const response: ApiResponse<
+            Omit<TokenRequest, "createdAt"> & { createdAt: string }
+        > = {
+            success: true,
+            data: {
+                ...tokenRequest,
+                createdAt: tokenRequest.createdAt.toDate().toISOString(),
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(201).json(response);
     }),
 );
 

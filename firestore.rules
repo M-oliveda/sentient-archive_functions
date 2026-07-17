@@ -41,6 +41,16 @@ service cloud.firestore {
       }
     }
 
+    // Token requests collection
+    match /tokenRequests/{requestId} {
+      // Users can read their own requests, admins can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Only backend can write token requests (via Admin SDK)
+      allow write: if false;
+    }
+
     // Transactions collection
     match /transactions/{transactionId} {
       // Users can read their own transactions, admins can read all

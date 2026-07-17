@@ -74,6 +74,11 @@ const mockTransactionRef: MockTransactionRef = {
     set: jest.fn(),
 };
 
+const mockTokenRequestRef = {
+    id: "test-request-id",
+    set: jest.fn<() => Promise<void>>(),
+};
+
 // Helper to create properly typed transaction mock
 const createMockTransaction = (userDoc: MockUserDoc): MockFirestoreTransaction => ({
     get: jest.fn<(ref: unknown) => Promise<MockUserDoc>>().mockResolvedValue(userDoc),
@@ -106,6 +111,12 @@ const mockDb = {
                 doc: jest.fn(() => ({
                     get: mockDocGet,
                 })),
+            };
+        }
+        if (name === "tokenRequests") {
+            return {
+                doc: jest.fn(() => mockTokenRequestRef),
+                where: mockQueryChain.where,
             };
         }
         return {
@@ -565,6 +576,86 @@ describe("Token Service", () => {
                 code: "INTERNAL_ERROR",
                 statusCode: 500,
             });
+        });
+    });
+
+    describe("requestTokens", () => {
+        test("should create a token request and return it", async () => {
+            mockTokenRequestRef.set.mockResolvedValue(undefined);
+
+            const result = await tokenService.requestTokens("user-123", 50);
+
+            expect(result).toEqual({
+                id: "test-request-id",
+                userId: "user-123",
+                amount: 50,
+                status: "pending",
+                createdAt: expect.anything(),
+            });
+            expect(mockTokenRequestRef.set).toHaveBeenCalledWith(result);
+        });
+
+        test("should use the generated document ID as the request id", async () => {
+            mockTokenRequestRef.set.mockResolvedValue(undefined);
+
+            const result = await tokenService.requestTokens("user-456", 100);
+
+            expect(result.id).toBe("test-request-id");
+            expect(result.userId).toBe("user-456");
+            expect(result.amount).toBe(100);
+            expect(result.status).toBe("pending");
+        });
+    });
+
+    describe("getRequests", () => {
+        test("should return token requests for a user", async () => {
+            const mockRequests = [
+                {
+                    id: "req-1",
+                    userId: "user-123",
+                    amount: 50,
+                    status: "pending",
+                    createdAt: mockTimestampNow(),
+                },
+                {
+                    id: "req-2",
+                    userId: "user-123",
+                    amount: 100,
+                    status: "approved",
+                    createdAt: mockTimestampNow(),
+                },
+            ];
+
+            mockCollectionGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockRequests.forEach((req) => callback({ data: () => req }));
+                },
+            });
+
+            const requests = await tokenService.getRequests("user-123");
+
+            expect(requests).toHaveLength(2);
+            expect(requests[0]).toEqual(mockRequests[0]);
+            expect(requests[1]).toEqual(mockRequests[1]);
+            expect(mockQueryChain.where).toHaveBeenCalledWith("userId", "==", "user-123");
+            expect(mockQueryChain.orderBy).toHaveBeenCalledWith("createdAt", "desc");
+            expect(mockQueryChain.limit).toHaveBeenCalledWith(20);
+        });
+
+        test("should use custom limit when provided", async () => {
+            mockCollectionGet.mockResolvedValue({ forEach: jest.fn() });
+
+            await tokenService.getRequests("user-123", 5);
+
+            expect(mockQueryChain.limit).toHaveBeenCalledWith(5);
+        });
+
+        test("should return empty array when no requests exist", async () => {
+            mockCollectionGet.mockResolvedValue({ forEach: jest.fn() });
+
+            const requests = await tokenService.getRequests("user-123");
+
+            expect(requests).toEqual([]);
         });
     });
 

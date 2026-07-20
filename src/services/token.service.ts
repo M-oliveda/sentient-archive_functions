@@ -15,6 +15,7 @@ import { AppError } from "@/middleware/errorHandler.js";
 import {
     Transaction,
     TokenBalance,
+    TokenRequest,
     OperationType,
     TransactionType,
 } from "@/types/transaction.js";
@@ -315,6 +316,57 @@ export class TokenService {
             });
             throw new AppError("INTERNAL_ERROR", 500, "Failed to grant tokens");
         }
+    }
+
+    /**
+     * Get token requests for a user
+     *
+     * @param userId - The user ID
+     * @param limit - Maximum number of requests to return
+     * @returns Array of token requests ordered newest-first
+     */
+    async getRequests(userId: string, limit = 20): Promise<TokenRequest[]> {
+        const db = getDb();
+        const snapshot = await db
+            .collection("tokenRequests")
+            .where("userId", "==", userId)
+            .orderBy("createdAt", "desc")
+            .limit(limit)
+            .get();
+
+        const requests: TokenRequest[] = [];
+        snapshot.forEach((doc) => {
+            requests.push(doc.data() as TokenRequest);
+        });
+
+        return requests;
+    }
+
+    /**
+     * Create a token request from a user
+     *
+     * @param userId - The requesting user's ID
+     * @param amount - The number of tokens requested
+     * @returns The created token request record
+     */
+    async requestTokens(userId: string, amount: number): Promise<TokenRequest> {
+        const db = getDb();
+        const requestRef = db.collection("tokenRequests").doc();
+        const now = Timestamp.now();
+
+        const requestData: TokenRequest = {
+            id: requestRef.id,
+            userId,
+            amount,
+            status: "pending",
+            createdAt: now,
+        };
+
+        await requestRef.set(requestData);
+
+        logEvent("token_request_created", { userId, amount, requestId: requestRef.id });
+
+        return requestData;
     }
 
     /**

@@ -45,3 +45,15 @@ export interface MintTokensInput {
     amount: number;
     description?: string;
 }
+
+export type TokenRequestStatus = "pending" | "approved" | "rejected";
+
+export interface TokenRequest {
+    id: string;
+    userId: string;
+    amount: number;
+    status: TokenRequestStatus;
+    createdAt: Timestamp;
+    reviewedAt?: Timestamp;
+    reviewedBy?: string;
+}

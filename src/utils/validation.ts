@@ -140,6 +140,17 @@ export const TokenMintRequestSchema = z
 
 export type TokenMintRequest = z.infer<typeof TokenMintRequestSchema>;
 
+// Token Request (user requests tokens from admin)
+export const TokenRequestSchema = z.object({
+    amount: z
+        .number()
+        .int()
+        .positive("Amount must be positive")
+        .max(10000, "Cannot request more than 10,000 tokens at once"),
+});
+
+export type TokenRequestInput = z.infer<typeof TokenRequestSchema>;
+
 // Token History Query (for pagination and filtering)
 export const TokenHistoryQuerySchema = z.object({
     limit: z.coerce

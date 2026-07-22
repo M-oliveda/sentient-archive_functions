@@ -3,10 +3,11 @@
  */
 
 import { describe, test, expect, jest, beforeAll, beforeEach } from "@jest/globals";
+import type { User } from "@/types/user.js";
 
 const mockUpdate = jest.fn<() => Promise<void>>();
 const mockAuthUpdateUser = jest.fn<() => Promise<void>>();
-const mockGetUserByUid = jest.fn<(uid: string) => Promise<typeof mockUser | null>>();
+const mockGetUserByUid = jest.fn<(uid: string) => Promise<User | null>>();
 
 const mockUser = {
     uid: "user-1",
@@ -92,7 +93,7 @@ describe("UserService", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockGetUserByUid.mockResolvedValue(mockUser);
+        mockGetUserByUid.mockResolvedValue(mockUser as unknown as User);
         mockUpdate.mockResolvedValue(undefined);
         mockAuthUpdateUser.mockResolvedValue(undefined);
     });
@@ -128,7 +129,7 @@ describe("UserService", () => {
             createdAt: null,
             lastLoginAt: null,
             updatedAt: null,
-        });
+        } as unknown as User);
 
         const result = await userService.updateProfile("user-1", "Jane Doe");
 
@@ -146,7 +147,7 @@ describe("UserService", () => {
             createdAt: undefined,
             lastLoginAt: undefined,
             updatedAt: undefined,
-        });
+        } as unknown as User);
 
         const result = await userService.updateProfile("user-1", "Jane Doe");
 

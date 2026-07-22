@@ -186,6 +186,40 @@ export const UpdateProfileRequestSchema = z.object({
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
 
 /**
+ * Activity Schemas
+ */
+
+export const ActivityCategorySchema = z.enum([
+    "all",
+    "ai",
+    "tokens",
+    "notes",
+    "folders",
+]);
+
+export type ActivityCategory = z.infer<typeof ActivityCategorySchema>;
+
+export const ActivityQuerySchema = z.object({
+    category: ActivityCategorySchema.optional().default("all"),
+    q: z.string().trim().max(200).optional().default(""),
+    limit: z.coerce
+        .number()
+        .int()
+        .min(1, "Limit must be at least 1")
+        .max(100, "Limit cannot exceed 100")
+        .optional()
+        .default(50),
+    offset: z.coerce
+        .number()
+        .int()
+        .min(0, "Offset cannot be negative")
+        .optional()
+        .default(0),
+});
+
+export type ActivityQuery = z.infer<typeof ActivityQuerySchema>;
+
+/**
  * Admin Schemas
  */
 

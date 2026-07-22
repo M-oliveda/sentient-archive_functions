@@ -36,6 +36,8 @@ const MIN_NOTES = 50;
 const MAX_NOTES = 100;
 const MIN_TRANSACTIONS_PER_USER = 3;
 const MAX_TRANSACTIONS_PER_USER = 10;
+const MIN_FOLDERS_PER_USER = 2;
+const MAX_FOLDERS_PER_USER = 5;
 
 // Store created user credentials for output
 interface UserCredentials {
@@ -220,6 +222,18 @@ function randomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+/** Mix of historical and recent dates so Activity stats cards are non-zero. */
+function activityTimestamp(preferRecent = false): Timestamp {
+    if (preferRecent || Math.random() > 0.55) {
+        // Today or within the last 6 days (this week / recent)
+        const hoursAgo = randomInt(0, 24 * 6);
+        const date = new Date();
+        date.setHours(date.getHours() - hoursAgo);
+        return Timestamp.fromDate(date);
+    }
+    return Timestamp.fromDate(faker.date.past({ years: 1 }));
+}
+
 function generateNoteContent(template: (typeof NOTE_TEMPLATES)[0]): {
     title: string;
     content: string;
@@ -400,7 +414,55 @@ async function seedUsers(): Promise<void> {
     }
 }
 
-async function seedNotes(): Promise<void> {
+async function seedFolders(): Promise<Map<string, string[]>> {
+    console.log("\n📁 Creating folders...");
+
+    const folderIdsByUser = new Map<string, string[]>();
+    const clientUsers = createdUsers.filter((u) => u.role === "client");
+    const folderNames = [
+        "Work",
+        "Personal",
+        "Research",
+        "Projects",
+        "Archive",
+        "Ideas",
+        "Learning",
+        "Recipes",
+    ];
+
+    for (const user of clientUsers) {
+        const folderCount = randomInt(MIN_FOLDERS_PER_USER, MAX_FOLDERS_PER_USER);
+        const names = faker.helpers.arrayElements(folderNames, folderCount);
+        const ids: string[] = [];
+
+        for (const name of names) {
+            const folderRef = db
+                .collection("users")
+                .doc(user.uid)
+                .collection("folders")
+                .doc();
+
+            const createdAt = activityTimestamp(Math.random() > 0.5);
+            await folderRef.set({
+                id: folderRef.id,
+                name,
+                parentId: null,
+                createdAt,
+                updatedAt: createdAt,
+            });
+            ids.push(folderRef.id);
+        }
+
+        folderIdsByUser.set(user.uid, ids);
+        console.log(`  ✓ Created ${ids.length} folders for ${user.email}`);
+    }
+
+    return folderIdsByUser;
+}
+
+async function seedNotes(
+    folderIdsByUser: Map<string, string[]>,
+): Promise<void> {
     console.log("\n📚 Creating notes...");
 
     const totalNotes = randomInt(MIN_NOTES, MAX_NOTES);
@@ -411,18 +473,28 @@ async function seedNotes(): Promise<void> {
 
     for (const user of clientUsers) {
         const userNoteCount = Math.ceil(totalNotes / clientUsers.length);
+        const userFolders = folderIdsByUser.get(user.uid) ?? [];
 
         for (let i = 0; i < userNoteCount && notesCreated < totalNotes; i++) {
             const template = faker.helpers.arrayElement(NOTE_TEMPLATES);
             const { title, content, tags } = generateNoteContent(template);
 
-            const createdAt = Timestamp.fromDate(faker.date.past({ years: 1 }));
-            const updatedAt = Timestamp.fromDate(
-                faker.date.between({
-                    from: createdAt.toDate(),
-                    to: new Date(),
-                }),
-            );
+            const createdAt = activityTimestamp(i < 2);
+            // Ensure some notes emit Activity "Note updated" events (>1 min after create)
+            const updatedAt =
+                Math.random() > 0.4
+                    ? Timestamp.fromDate(
+                          new Date(
+                              createdAt.toDate().getTime() +
+                                  randomInt(2, 48) * 60 * 60 * 1000,
+                          ),
+                      )
+                    : createdAt;
+
+            const folderId =
+                userFolders.length > 0 && Math.random() > 0.35
+                    ? faker.helpers.arrayElement(userFolders)
+                    : null;
 
             const noteRef = db
                 .collection("users")
@@ -436,7 +508,7 @@ async function seedNotes(): Promise<void> {
                 title,
                 content,
                 excerpt: content.slice(0, 200),
-                folderId: null,
+                folderId,
                 tags,
                 aiTags: faker.helpers.arrayElements(
                     [
@@ -476,6 +548,45 @@ async function seedNotes(): Promise<void> {
     console.log(`  Total notes created: ${notesCreated}`);
 }
 
+/**
+ * Write a transaction to both:
+ * - top-level `transactions` (Activity API + token.service)
+ * - `users/{uid}/transactions` (web Token Management page)
+ */
+async function writeTransaction(data: {
+    userId: string;
+    type: "grant" | "deduction";
+    amount: number;
+    operation: string;
+    balanceBefore: number;
+    balanceAfter: number;
+    createdAt: Timestamp;
+    description: string;
+    grantedBy?: string;
+}): Promise<void> {
+    const topLevelRef = db.collection("transactions").doc();
+    const userSubRef = db
+        .collection("users")
+        .doc(data.userId)
+        .collection("transactions")
+        .doc(topLevelRef.id);
+
+    const payload = {
+        id: topLevelRef.id,
+        userId: data.userId,
+        type: data.type,
+        amount: data.amount,
+        operation: data.operation,
+        balanceBefore: data.balanceBefore,
+        balanceAfter: data.balanceAfter,
+        createdAt: data.createdAt,
+        description: data.description,
+        ...(data.grantedBy ? { grantedBy: data.grantedBy } : {}),
+    };
+
+    await Promise.all([topLevelRef.set(payload), userSubRef.set(payload)]);
+}
+
 async function seedTransactions(): Promise<void> {
     console.log("\n💰 Creating transactions...");
 
@@ -489,13 +600,8 @@ async function seedTransactions(): Promise<void> {
         );
         let currentBalance = 1000; // Initial balance
 
-        const userRef = db.collection("users").doc(user.uid);
-        const transactionsRef = userRef.collection("transactions");
-
-        // First transaction: initial grant
-        const grantRef = transactionsRef.doc();
-        await grantRef.set({
-            id: grantRef.id,
+        // First transaction: initial grant (historical)
+        await writeTransaction({
             userId: user.uid,
             type: "grant",
             amount: 1000,
@@ -506,6 +612,20 @@ async function seedTransactions(): Promise<void> {
             description: "Welcome bonus - initial token grant",
             grantedBy: adminUser?.uid,
         });
+
+        // Ensure at least one AI op today and one grant this week for Activity stats
+        const todayAiCost = 10;
+        await writeTransaction({
+            userId: user.uid,
+            type: "deduction",
+            amount: todayAiCost,
+            operation: "summarize",
+            balanceBefore: currentBalance,
+            balanceAfter: currentBalance - todayAiCost,
+            createdAt: activityTimestamp(true),
+            description: "summarize operation",
+        });
+        currentBalance -= todayAiCost;
 
         // Random transactions
         for (let i = 0; i < transactionCount - 1; i++) {
@@ -531,16 +651,14 @@ async function seedTransactions(): Promise<void> {
             if (currentBalance < 0) {
                 // Add a grant if balance goes negative
                 const grantAmount = randomInt(100, 500);
-                const grantTxRef = transactionsRef.doc();
-                await grantTxRef.set({
-                    id: grantTxRef.id,
+                await writeTransaction({
                     userId: user.uid,
                     type: "grant",
                     amount: grantAmount,
                     operation: "admin_grant",
                     balanceBefore: balanceBefore - cost,
                     balanceAfter: balanceBefore - cost + grantAmount,
-                    createdAt: Timestamp.fromDate(faker.date.recent()),
+                    createdAt: activityTimestamp(true),
                     description: "Token replenishment",
                     grantedBy: adminUser?.uid,
                 });
@@ -548,27 +666,27 @@ async function seedTransactions(): Promise<void> {
                 continue;
             }
 
-            const txRef = transactionsRef.doc();
-            await txRef.set({
-                id: txRef.id,
+            await writeTransaction({
                 userId: user.uid,
                 type: "deduction",
                 amount: cost,
                 operation,
                 balanceBefore,
                 balanceAfter: currentBalance,
-                createdAt: Timestamp.fromDate(faker.date.recent()),
+                createdAt: activityTimestamp(i < 2),
                 description: `${operation} operation`,
             });
         }
 
         // Update user's final balance
-        await userRef.update({
+        await db.collection("users").doc(user.uid).update({
             tokenBalance: currentBalance,
             totalTokensSpent: 1000 - currentBalance,
         });
 
-        console.log(`  ✓ Created ${transactionCount} transactions for ${user.email}`);
+        console.log(
+            `  ✓ Created ${transactionCount + 1} transactions for ${user.email}`,
+        );
     }
 }
 
@@ -689,7 +807,8 @@ async function main(): Promise<void> {
 
     try {
         await seedUsers();
-        await seedNotes();
+        const folderIdsByUser = await seedFolders();
+        await seedNotes(folderIdsByUser);
         await seedTransactions();
         await seedSystemConfig();
         printSummary();

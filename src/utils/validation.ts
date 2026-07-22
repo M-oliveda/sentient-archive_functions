@@ -172,6 +172,20 @@ export const TokenHistoryQuerySchema = z.object({
 export type TokenHistoryQuery = z.infer<typeof TokenHistoryQuerySchema>;
 
 /**
+ * User Profile Schemas
+ */
+
+export const UpdateProfileRequestSchema = z.object({
+    displayName: z
+        .string()
+        .trim()
+        .min(1, "Display name is required")
+        .max(80, "Display name cannot exceed 80 characters"),
+});
+
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
+
+/**
  * Admin Schemas
  */
 

@@ -419,6 +419,43 @@ describe("Validation Utility", () => {
             expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
         });
 
+        test("should validate AI config with thinking parameters", () => {
+            const data = {
+                ai: {
+                    model: "gemini-3.5-flash",
+                    temperature: 1.0,
+                    thinkingLevel: "medium",
+                    thinkingBudget: 1024,
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
+        });
+
+        test("should validate thinkingLevel enum values", () => {
+            const validLevels = ["minimal", "low", "medium", "high"];
+
+            validLevels.forEach((level) => {
+                const data = {
+                    ai: {
+                        thinkingLevel: level,
+                    },
+                };
+
+                expect(() => SystemConfigUpdateSchema.parse(data)).not.toThrow();
+            });
+        });
+
+        test("should reject invalid thinkingLevel", () => {
+            const data = {
+                ai: {
+                    thinkingLevel: "invalid",
+                },
+            };
+
+            expect(() => SystemConfigUpdateSchema.parse(data)).toThrow(z.ZodError);
+        });
+
         test("should validate token costs update", () => {
             const data = {
                 tokens: {

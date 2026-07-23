@@ -18,6 +18,16 @@ export interface SystemConfig {
         model: string;
         maxTokensPerRequest: number;
         temperature: number;
+        /**
+         * Thinking level for Gemini 3+ models
+         * Values: "minimal" | "low" | "medium" | "high"
+         */
+        thinkingLevel?: "minimal" | "low" | "medium" | "high";
+        /**
+         * Thinking budget for Gemini 2.5 models (numeric)
+         * -1 = dynamic, 0 = disabled, >0 = specific token count
+         */
+        thinkingBudget?: number;
     };
     tokens: {
         initialGrant: {
@@ -40,6 +50,11 @@ export interface SystemConfig {
         ragQueryEnabled: boolean;
         fileExtractionEnabled: boolean;
     };
+    fileUpload: {
+        maxSizeBytes: number;
+        allowedTypes: string[];
+        allowedExtensions: string[];
+    };
     rateLimits: {
         aiRequestsPerHour: number;
         fileExtractionsPerDay: number;
@@ -55,22 +70,24 @@ export interface SystemConfig {
  */
 const DEFAULT_CONFIG: Omit<SystemConfig, "createdAt" | "lastUpdatedAt"> = {
     ai: {
-        model: "gemini-1.5-flash",
-        maxTokensPerRequest: 4096,
-        temperature: 0.7,
+        model: "gemini-3.5-flash",
+        maxTokensPerRequest: 2048,
+        temperature: 1.0,
+        thinkingLevel: "low",
+        thinkingBudget: 0,
     },
     tokens: {
         initialGrant: {
-            production: 100,
-            development: 500,
-            staging: 200,
-            local: 1000,
+            production: 25,
+            development: 50,
+            staging: 40,
+            local: 50,
         },
         costs: {
-            summarize: 2,
-            autoTag: 1,
-            flashcards: 3,
-            ragQuery: 4,
+            summarize: 5,
+            autoTag: 3,
+            flashcards: 8,
+            ragQuery: 10,
         },
     },
     features: {
@@ -81,8 +98,13 @@ const DEFAULT_CONFIG: Omit<SystemConfig, "createdAt" | "lastUpdatedAt"> = {
         fileExtractionEnabled: true,
     },
     rateLimits: {
-        aiRequestsPerHour: 100,
-        fileExtractionsPerDay: 50,
+        aiRequestsPerHour: 20,
+        fileExtractionsPerDay: 10,
+    },
+    fileUpload: {
+        maxSizeBytes: 10485760, // 10 MB
+        allowedTypes: ["application/pdf", "text/plain", "text/markdown"],
+        allowedExtensions: [".pdf", ".txt", ".md"],
     },
     version: 1,
     lastUpdatedBy: null,

@@ -73,16 +73,16 @@ describe("Rate Limit Middleware", () => {
             expect(mockNext).toHaveBeenCalledWith();
             expect(mockResponse.setHeader).toHaveBeenCalledWith(
                 "X-RateLimit-Limit",
-                "60",
+                "20",
             );
             expect(mockResponse.setHeader).toHaveBeenCalledWith(
                 "X-RateLimit-Remaining",
-                "54",
+                "14",
             );
         });
 
         test("should reject request exceeding rate limit", async () => {
-            mockGetRateLimitCount.mockResolvedValue(60);
+            mockGetRateLimitCount.mockResolvedValue(20);
 
             const middleware = rateLimitMiddleware("aiRequests");
             await middleware(
@@ -211,7 +211,7 @@ describe("Rate Limit Middleware", () => {
             expect(mockNext).toHaveBeenCalledWith();
             expect(mockResponse.setHeader).toHaveBeenCalledWith(
                 "X-RateLimit-Limit",
-                "60",
+                "20",
             );
         });
 

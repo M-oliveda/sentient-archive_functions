@@ -32,11 +32,11 @@ interface RateLimitConfig {
  */
 const DEFAULT_LIMITS: Record<RateLimitType, RateLimitConfig> = {
     aiRequests: {
-        maxRequests: 60,
+        maxRequests: 20,
         windowMs: 60 * 60 * 1000, // 1 hour
     },
     fileExtractions: {
-        maxRequests: 20,
+        maxRequests: 10,
         windowMs: 24 * 60 * 60 * 1000, // 24 hours
     },
 };

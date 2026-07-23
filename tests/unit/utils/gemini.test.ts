@@ -144,7 +144,7 @@ describe("Gemini Client Utility", () => {
 
     describe("constants", () => {
         test("should export DEFAULT_MODEL", () => {
-            expect(DEFAULT_MODEL).toBe("gemini-flash-lite-latest");
+            expect(DEFAULT_MODEL).toBe("gemini-3.5-flash");
         });
 
         test("should export DEFAULT_MAX_TOKENS", () => {
@@ -152,7 +152,7 @@ describe("Gemini Client Utility", () => {
         });
 
         test("should export DEFAULT_TEMPERATURE", () => {
-            expect(DEFAULT_TEMPERATURE).toBe(1);
+            expect(DEFAULT_TEMPERATURE).toBe(1.0);
         });
     });
 

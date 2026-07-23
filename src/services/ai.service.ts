@@ -14,6 +14,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 import {
     getGenerativeModel,
+    DEFAULT_MODEL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
 } from "@/utils/gemini.js";
@@ -123,7 +124,7 @@ export class AIService {
             tomlDefaults = {
                 temperature: DEFAULT_TEMPERATURE,
                 maxTokens: DEFAULT_MAX_TOKENS,
-                model: "gemini-flash-lite-latest",
+                model: DEFAULT_MODEL,
             };
         }
 
@@ -144,6 +145,8 @@ export class AIService {
             maxTokensPerRequest:
                 aiConfig?.maxTokensPerRequest ?? tomlDefaults.maxTokens,
             temperature: aiConfig?.temperature ?? tomlDefaults.temperature,
+            thinkingLevel: aiConfig?.thinkingLevel,
+            thinkingBudget: aiConfig?.thinkingBudget,
             systemPrompts: {
                 summarize:
                     aiConfig?.systemPrompts?.summarize ?? defaultPrompts.summarize,
@@ -177,7 +180,7 @@ export class AIService {
                 inputTokens: 0, // Gemini API doesn't always provide this breakdown
                 outputTokens: 0,
                 totalTokens: tokensUsed,
-                model: "gemini-flash-lite-latest",
+                model: DEFAULT_MODEL,
                 success,
                 errorMessage,
                 durationMs,
@@ -294,6 +297,12 @@ ${input.maxLength ? `Maximum summary length: ${input.maxLength} characters` : ""
                         generationConfig: {
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
+                            ...(config.thinkingLevel && {
+                                thinkingLevel: config.thinkingLevel,
+                            }),
+                            ...(config.thinkingBudget !== undefined && {
+                                thinkingBudget: config.thinkingBudget,
+                            }),
                         },
                     }),
                 "summarize",
@@ -363,6 +372,12 @@ Generate up to ${maxTags} relevant tags.`;
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
                             responseMimeType: "application/json",
+                            ...(config.thinkingLevel && {
+                                thinkingLevel: config.thinkingLevel,
+                            }),
+                            ...(config.thinkingBudget !== undefined && {
+                                thinkingBudget: config.thinkingBudget,
+                            }),
                         },
                     }),
                 "autoTag",
@@ -454,6 +469,12 @@ Generate exactly ${count} flashcards.`;
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
                             responseMimeType: "application/json",
+                            ...(config.thinkingLevel && {
+                                thinkingLevel: config.thinkingLevel,
+                            }),
+                            ...(config.thinkingBudget !== undefined && {
+                                thinkingBudget: config.thinkingBudget,
+                            }),
                         },
                     }),
                 "flashcards",
@@ -550,6 +571,12 @@ ${input.maxLength ? `Maximum response length: ${input.maxLength} characters` : "
                         generationConfig: {
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
+                            ...(config.thinkingLevel && {
+                                thinkingLevel: config.thinkingLevel,
+                            }),
+                            ...(config.thinkingBudget !== undefined && {
+                                thinkingBudget: config.thinkingBudget,
+                            }),
                         },
                     }),
                 "ragQuery",

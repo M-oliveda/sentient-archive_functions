@@ -4,6 +4,16 @@
 
 import { describe, test, expect, jest, beforeAll, beforeEach } from "@jest/globals";
 
+// Type definitions for mock query builders
+interface IMockTransactionQueryBuilder {
+    where: jest.Mock<() => IMockTransactionQueryBuilder>;
+    orderBy: jest.Mock<
+        () => { limit: jest.Mock<() => { get: typeof mockTransactionsGet }> }
+    >;
+    limit: jest.Mock<() => { get: typeof mockTransactionsGet }>;
+    get: typeof mockTransactionsGet;
+}
+
 // Mock Firestore data
 const mockUsersData = [
     {
@@ -62,11 +72,19 @@ const mockDb = {
             };
         }
         if (name === "transactions") {
-            return {
-                where: jest.fn(() => ({
+            const buildQuery = (): IMockTransactionQueryBuilder => ({
+                where: jest.fn((): IMockTransactionQueryBuilder => buildQuery()),
+                orderBy: jest.fn(() => ({
+                    limit: jest.fn(() => ({
+                        get: mockTransactionsGet,
+                    })),
+                })),
+                limit: jest.fn(() => ({
                     get: mockTransactionsGet,
                 })),
-            };
+                get: mockTransactionsGet,
+            });
+            return buildQuery();
         }
         return {};
     }),
@@ -108,6 +126,10 @@ jest.unstable_mockModule("firebase-functions/v2", () => ({
         error: jest.fn(),
         debug: jest.fn(),
     },
+}));
+
+jest.unstable_mockModule("@/utils/firestore.js", () => ({
+    getDb: jest.fn(() => mockDb),
 }));
 
 // Import module dynamically after mocking
@@ -349,6 +371,680 @@ describe("Analytics Service", () => {
 
         test("singleton instance should be available", () => {
             expect(analyticsService).toBeInstanceOf(AnalyticsService);
+        });
+    });
+
+    describe("getAnalyticsWithTrends", () => {
+        beforeEach(() => {
+            // Ensure base mocks are set up for getAnalytics call within getAnalyticsWithTrends
+            mockUsersGet.mockResolvedValue({
+                size: mockUsersData.length,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockUsersData.forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            mockNotesCountGet.mockResolvedValue({
+                data: () => ({ count: 150 }),
+            });
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    mockTransactionsData
+                        .filter((tx) => tx.type === "deduction")
+                        .forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+        });
+
+        test("should return analytics with 7-day trends", async () => {
+            // Mock transactions for trends
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            amount: 2,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T12:00:00.000Z"),
+                            },
+                        },
+                        {
+                            type: "deduction",
+                            operation: "autoTag",
+                            amount: 1,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-11T14:00:00.000Z"),
+                            },
+                        },
+                        {
+                            type: "grant",
+                            operation: "admin_grant",
+                            amount: 100,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-12T10:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            mockUsersGet.mockResolvedValue({
+                size: 2,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 150,
+                            totalTokensSpent: 50,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T08:00:00.000Z"),
+                            },
+                        },
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 200,
+                            totalTokensGranted: 300,
+                            totalTokensSpent: 100,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-11T09:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+
+            expect(analytics).toHaveProperty("users");
+            expect(analytics).toHaveProperty("trends");
+            expect(analytics.dateRange).toBe("7d");
+            expect(analytics.trends).toHaveProperty("aiOperationsOverTime");
+            expect(analytics.trends).toHaveProperty("tokenUsageOverTime");
+            expect(analytics.trends).toHaveProperty("userGrowthOverTime");
+        });
+
+        test("should return analytics with 30-day trends", async () => {
+            const analytics = await analyticsService.getAnalyticsWithTrends("30d");
+
+            expect(analytics.dateRange).toBe("30d");
+            expect(analytics.trends.aiOperationsOverTime).toHaveLength(30);
+            expect(analytics.trends.tokenUsageOverTime).toHaveLength(30);
+            expect(analytics.trends.userGrowthOverTime).toHaveLength(30);
+        });
+
+        test("should return analytics with 90-day trends", async () => {
+            const analytics = await analyticsService.getAnalyticsWithTrends("90d");
+
+            expect(analytics.dateRange).toBe("90d");
+            expect(analytics.trends.aiOperationsOverTime).toHaveLength(90);
+            expect(analytics.trends.tokenUsageOverTime).toHaveLength(90);
+            expect(analytics.trends.userGrowthOverTime).toHaveLength(90);
+        });
+
+        test("should default to 30-day trends when no range specified", async () => {
+            const analytics = await analyticsService.getAnalyticsWithTrends();
+
+            expect(analytics.dateRange).toBe("30d");
+            expect(analytics.trends.aiOperationsOverTime).toHaveLength(30);
+        });
+
+        test("should handle errors in getAnalyticsWithTrends", async () => {
+            mockUsersGet.mockRejectedValue(new Error("Database error"));
+
+            await expect(
+                analyticsService.getAnalyticsWithTrends("7d"),
+            ).rejects.toMatchObject({
+                code: "INTERNAL_ERROR",
+                statusCode: 500,
+            });
+        });
+
+        test("should re-throw AppError in getAnalyticsWithTrends", async () => {
+            const { AppError } = await import("@/middleware/errorHandler.js");
+            mockUsersGet.mockRejectedValue(
+                new AppError("INVALID_REQUEST", 400, "Custom error"),
+            );
+
+            await expect(
+                analyticsService.getAnalyticsWithTrends("7d"),
+            ).rejects.toMatchObject({
+                code: "INVALID_REQUEST",
+                statusCode: 400,
+            });
+        });
+
+        test("should handle non-Error thrown objects in getAnalyticsWithTrends", async () => {
+            mockUsersGet.mockRejectedValue("String error");
+
+            await expect(
+                analyticsService.getAnalyticsWithTrends("7d"),
+            ).rejects.toMatchObject({
+                code: "INTERNAL_ERROR",
+                statusCode: 500,
+            });
+        });
+    });
+
+    describe("AI Operations Trend", () => {
+        test("should calculate AI operations trend with correct date buckets", async () => {
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T10:00:00.000Z"),
+                            },
+                        },
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T14:00:00.000Z"),
+                            },
+                        },
+                        {
+                            type: "deduction",
+                            operation: "autoTag",
+                            createdAt: {
+                                toDate: () => new Date("2024-01-11T12:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.aiOperationsOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend[0]).toHaveProperty("date");
+            expect(trend[0]).toHaveProperty("count");
+
+            // Should be sorted by date
+            for (let i = 1; i < trend.length; i++) {
+                expect(trend[i]!.date >= trend[i - 1]!.date).toBe(true);
+            }
+        });
+
+        test("should handle transactions with string createdAt", async () => {
+            // Use a date within the 7-day window (getTrends uses new Date(), not mocked Timestamp)
+            const testDate = new Date();
+            testDate.setDate(testDate.getDate() - 3); // 3 days ago
+            const testDateStr = testDate.toISOString();
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            amount: 2,
+                            createdAt: testDateStr,
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.aiOperationsOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.some((d) => d.count > 0)).toBe(true);
+        });
+
+        test("should handle transactions with number createdAt", async () => {
+            // Use a date within the 7-day window (getTrends uses new Date(), not mocked Timestamp)
+            const testDate = new Date();
+            testDate.setDate(testDate.getDate() - 3); // 3 days ago
+            const testDateNum = testDate.getTime();
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            amount: 2,
+                            createdAt: testDateNum,
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.aiOperationsOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.some((d) => d.count > 0)).toBe(true);
+        });
+
+        test("should handle transactions with undefined createdAt", async () => {
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            createdAt: undefined,
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.aiOperationsOverTime;
+
+            expect(trend).toHaveLength(7);
+        });
+
+        test("should ignore operations outside date range", async () => {
+            const oldDate = new Date("2020-01-01T00:00:00.000Z");
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            createdAt: { toDate: () => oldDate },
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.aiOperationsOverTime;
+
+            // Count should be 0 for all buckets since date is outside range
+            expect(trend.every((d) => d.count === 0)).toBe(true);
+        });
+    });
+
+    describe("Token Usage Trend", () => {
+        test("should calculate token usage trend with grants and deductions", async () => {
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "grant",
+                            operation: "admin_grant",
+                            amount: 100,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T10:00:00.000Z"),
+                            },
+                        },
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            amount: 2,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T14:00:00.000Z"),
+                            },
+                        },
+                        {
+                            type: "deduction",
+                            operation: "autoTag",
+                            amount: 1,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-11T12:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.tokenUsageOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend[0]).toHaveProperty("date");
+            expect(trend[0]).toHaveProperty("granted");
+            expect(trend[0]).toHaveProperty("spent");
+
+            // Should be sorted by date
+            for (let i = 1; i < trend.length; i++) {
+                expect(trend[i]!.date >= trend[i - 1]!.date).toBe(true);
+            }
+        });
+
+        test("should handle transactions with string type", async () => {
+            // Use a date within the 7-day window (getTrends uses new Date(), not mocked Timestamp)
+            const testDate = new Date();
+            testDate.setDate(testDate.getDate() - 3); // 3 days ago
+            const testDateStr = testDate.toISOString();
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "grant",
+                            operation: "admin_grant",
+                            amount: 50,
+                            createdAt: testDateStr,
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.tokenUsageOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.some((d) => d.granted > 0)).toBe(true);
+        });
+
+        test("should handle transactions with number type", async () => {
+            // Use a date within the 7-day window (getTrends uses new Date(), not mocked Timestamp)
+            const testDate = new Date();
+            testDate.setDate(testDate.getDate() - 3); // 3 days ago
+            const testDateNum = testDate.getTime();
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "deduction",
+                            operation: "summarize",
+                            amount: 5,
+                            createdAt: testDateNum,
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.tokenUsageOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.some((d) => d.spent > 0)).toBe(true);
+        });
+
+        test("should handle transactions with undefined amount", async () => {
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "grant",
+                            amount: undefined,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T10:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.tokenUsageOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.every((d) => d.granted === 0 && d.spent === 0)).toBe(true);
+        });
+
+        test("should ignore unknown transaction types", async () => {
+            mockTransactionsGet.mockResolvedValue({
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            type: "unknown_type",
+                            amount: 100,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T10:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((tx) => callback({ data: () => tx }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.tokenUsageOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.every((d) => d.granted === 0 && d.spent === 0)).toBe(true);
+        });
+    });
+
+    describe("User Growth Trend", () => {
+        test("should calculate user growth trend with cumulative totals", async () => {
+            mockUsersGet.mockResolvedValue({
+                size: 3,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-10T08:00:00.000Z"),
+                            },
+                        },
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-11T09:00:00.000Z"),
+                            },
+                        },
+                        {
+                            role: "admin",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: {
+                                toDate: () => new Date("2024-01-11T10:00:00.000Z"),
+                            },
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.userGrowthOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend[0]).toHaveProperty("date");
+            expect(trend[0]).toHaveProperty("newUsers");
+            expect(trend[0]).toHaveProperty("totalUsers");
+
+            // Cumulative total should never decrease
+            for (let i = 1; i < trend.length; i++) {
+                expect(trend[i]!.totalUsers).toBeGreaterThanOrEqual(
+                    trend[i - 1]!.totalUsers,
+                );
+            }
+
+            // Should be sorted by date
+            for (let i = 1; i < trend.length; i++) {
+                expect(trend[i]!.date >= trend[i - 1]!.date).toBe(true);
+            }
+        });
+
+        test("should handle users with string createdAt", async () => {
+            // Use a date within the 7-day window (getTrends uses new Date(), not mocked Timestamp)
+            const testDate = new Date();
+            testDate.setDate(testDate.getDate() - 3); // 3 days ago
+            const testDateStr = testDate.toISOString();
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: testDateStr,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: jest.fn(),
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.userGrowthOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.some((d) => d.newUsers > 0)).toBe(true);
+        });
+
+        test("should handle users with number createdAt", async () => {
+            // Use a date within the 7-day window (getTrends uses new Date(), not mocked Timestamp)
+            const testDate = new Date();
+            testDate.setDate(testDate.getDate() - 3); // 3 days ago
+            const testDateNum = testDate.getTime();
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: testDateNum,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            mockTransactionsGet.mockResolvedValue({
+                forEach: jest.fn(),
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.userGrowthOverTime;
+
+            expect(trend).toHaveLength(7);
+            expect(trend.some((d) => d.newUsers > 0)).toBe(true);
+        });
+
+        test("should handle users with undefined createdAt", async () => {
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: undefined,
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.userGrowthOverTime;
+
+            expect(trend).toHaveLength(7);
+        });
+
+        test("should ignore users outside date range", async () => {
+            const oldDate = new Date("2020-01-01T00:00:00.000Z");
+
+            mockUsersGet.mockResolvedValue({
+                size: 1,
+                forEach: (callback: (doc: { data: () => unknown }) => void) => {
+                    [
+                        {
+                            role: "client",
+                            isActive: true,
+                            tokenBalance: 100,
+                            totalTokensGranted: 100,
+                            totalTokensSpent: 0,
+                            createdAt: { toDate: () => oldDate },
+                        },
+                    ].forEach((user) => callback({ data: () => user }));
+                },
+            });
+
+            const analytics = await analyticsService.getAnalyticsWithTrends("7d");
+            const trend = analytics.trends.userGrowthOverTime;
+
+            // All buckets should have 0 new users since date is outside range
+            expect(trend.every((d) => d.newUsers === 0)).toBe(true);
         });
     });
 });

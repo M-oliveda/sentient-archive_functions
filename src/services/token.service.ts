@@ -347,9 +347,14 @@ export class TokenService {
      *
      * @param userId - The requesting user's ID
      * @param amount - The number of tokens requested
+     * @param justification - Optional reason for the request
      * @returns The created token request record
      */
-    async requestTokens(userId: string, amount: number): Promise<TokenRequest> {
+    async requestTokens(
+        userId: string,
+        amount: number,
+        justification?: string,
+    ): Promise<TokenRequest> {
         const db = getDb();
         const requestRef = db.collection("tokenRequests").doc();
         const now = Timestamp.now();
@@ -360,6 +365,7 @@ export class TokenService {
             amount,
             status: "pending",
             createdAt: now,
+            ...(justification ? { justification } : {}),
         };
 
         await requestRef.set(requestData);
@@ -367,6 +373,280 @@ export class TokenService {
         logEvent("token_request_created", { userId, amount, requestId: requestRef.id });
 
         return requestData;
+    }
+
+    /**
+     * Get token requests for admin review (with filtering)
+     *
+     * @param options - Filter options (status, userId, date range, pagination)
+     * @returns Array of token requests with user info
+     */
+    async getAdminTokenRequests(
+        options: {
+            limit?: number;
+            offset?: number;
+            status?: "pending" | "approved" | "rejected" | "all";
+            userId?: string;
+            startDate?: string;
+            endDate?: string;
+        } = {},
+    ): Promise<
+        (TokenRequest & {
+            userEmail?: string;
+            userDisplayName?: string;
+            userName?: string;
+            userAvatarUrl?: string;
+            currentBalance?: number;
+            isUrgent?: boolean;
+        })[]
+    > {
+        const db = getDb();
+        const { limit = 20, offset = 0, status, userId, startDate, endDate } = options;
+        const LOW_BALANCE_THRESHOLD = 20;
+
+        let query = db.collection("tokenRequests").orderBy("createdAt", "desc");
+
+        // Filter by status
+        if (status && status !== "all") {
+            query = query.where("status", "==", status);
+        }
+
+        // Filter by userId
+        if (userId) {
+            query = query.where("userId", "==", userId);
+        }
+
+        const snapshot = await query.offset(offset).limit(limit).get();
+
+        const requests: (TokenRequest & {
+            userEmail?: string;
+            userDisplayName?: string;
+            userName?: string;
+            userAvatarUrl?: string;
+            currentBalance?: number;
+            isUrgent?: boolean;
+        })[] = [];
+
+        for (const doc of snapshot.docs) {
+            const requestData = doc.data() as TokenRequest;
+            const user = await getUserByUid(requestData.userId);
+            const currentBalance = user ? (user.tokenBalance ?? 0) : undefined;
+
+            requests.push({
+                ...requestData,
+                userEmail: user?.email,
+                userDisplayName: user?.displayName ?? undefined,
+                userName: user?.displayName ?? user?.email,
+                userAvatarUrl: user?.photoURL ?? undefined,
+                currentBalance,
+                isUrgent:
+                    requestData.status === "pending" &&
+                    typeof currentBalance === "number" &&
+                    currentBalance < LOW_BALANCE_THRESHOLD,
+            });
+        }
+
+        // Filter by date range if provided
+        if (startDate || endDate) {
+            const start = startDate ? new Date(startDate) : null;
+            const end = endDate ? new Date(endDate) : null;
+
+            return requests.filter((req) => {
+                const reqDate = req.createdAt.toDate();
+                if (start && reqDate < start) return false;
+                if (end && reqDate > end) return false;
+                return true;
+            });
+        }
+
+        return requests;
+    }
+
+    /**
+     * Approve a token request
+     *
+     * @param requestId - The token request ID
+     * @param approvedBy - The admin user ID
+     * @param overrideAmount - Optional amount override
+     * @param notes - Optional approval notes
+     * @returns Updated token request
+     * @throws AppError if request not found or already reviewed
+     */
+    async approveTokenRequest(
+        requestId: string,
+        approvedBy: string,
+        overrideAmount?: number,
+        notes?: string,
+    ): Promise<TokenRequest> {
+        const db = getDb();
+        const requestRef = db.collection("tokenRequests").doc(requestId);
+        const requestDoc = await requestRef.get();
+
+        if (!requestDoc.exists) {
+            throw new AppError("NOT_FOUND", 404, "Token request not found");
+        }
+
+        const request = requestDoc.data() as TokenRequest;
+
+        if (request.status !== "pending") {
+            throw new AppError(
+                "INVALID_REQUEST",
+                400,
+                `Cannot approve request with status: ${request.status}`,
+            );
+        }
+
+        const grantAmount = overrideAmount ?? request.amount;
+        const now = Timestamp.now();
+
+        try {
+            // Use transaction to atomically approve and grant tokens
+            await db.runTransaction(async (transaction) => {
+                // Update token request status
+                transaction.update(requestRef, {
+                    status: "approved",
+                    reviewedAt: now,
+                    reviewedBy: approvedBy,
+                });
+
+                // Grant tokens to user
+                const userRef = db.collection("users").doc(request.userId);
+                const userDoc = await transaction.get(userRef);
+
+                if (!userDoc.exists) {
+                    throw new AppError("NOT_FOUND", 404, "User not found");
+                }
+
+                const userData = userDoc.data();
+                const currentBalance = (userData?.["tokenBalance"] as number) ?? 0;
+                const totalGranted = (userData?.["totalTokensGranted"] as number) ?? 0;
+                const newBalance = currentBalance + grantAmount;
+
+                // Create transaction record for the grant
+                const transactionRef = db.collection("transactions").doc();
+                const transactionData: Transaction = {
+                    id: transactionRef.id,
+                    userId: request.userId,
+                    type: "grant",
+                    amount: grantAmount,
+                    operation: "admin_grant",
+                    balanceBefore: currentBalance,
+                    balanceAfter: newBalance,
+                    createdAt: now,
+                    description: notes ?? `Approved token request #${requestId}`,
+                    grantedBy: approvedBy,
+                };
+
+                transaction.update(userRef, {
+                    tokenBalance: newBalance,
+                    totalTokensGranted: totalGranted + grantAmount,
+                    updatedAt: now,
+                });
+
+                transaction.set(transactionRef, transactionData);
+            });
+
+            logEvent("token_request_approved", {
+                requestId,
+                userId: request.userId,
+                amount: grantAmount,
+                approvedBy,
+            });
+
+            // Return updated request
+            return {
+                ...request,
+                status: "approved",
+                reviewedAt: now,
+                reviewedBy: approvedBy,
+            };
+        } catch (error) {
+            if (error instanceof AppError) {
+                throw error;
+            }
+            logError(
+                "Failed to approve token request",
+                error instanceof Error ? error : undefined,
+                {
+                    requestId,
+                    userId: request.userId,
+                },
+            );
+            throw new AppError(
+                "INTERNAL_ERROR",
+                500,
+                "Failed to approve token request",
+            );
+        }
+    }
+
+    /**
+     * Reject a token request
+     *
+     * @param requestId - The token request ID
+     * @param rejectedBy - The admin user ID
+     * @param reason - Optional rejection reason
+     * @returns Updated token request
+     * @throws AppError if request not found or already reviewed
+     */
+    async rejectTokenRequest(
+        requestId: string,
+        rejectedBy: string,
+        reason?: string,
+    ): Promise<TokenRequest> {
+        const db = getDb();
+        const requestRef = db.collection("tokenRequests").doc(requestId);
+        const requestDoc = await requestRef.get();
+
+        if (!requestDoc.exists) {
+            throw new AppError("NOT_FOUND", 404, "Token request not found");
+        }
+
+        const request = requestDoc.data() as TokenRequest;
+
+        if (request.status !== "pending") {
+            throw new AppError(
+                "INVALID_REQUEST",
+                400,
+                `Cannot reject request with status: ${request.status}`,
+            );
+        }
+
+        const now = Timestamp.now();
+
+        try {
+            await requestRef.update({
+                status: "rejected",
+                reviewedAt: now,
+                reviewedBy: rejectedBy,
+                reason: reason ?? "No reason provided",
+            });
+
+            logEvent("token_request_rejected", {
+                requestId,
+                userId: request.userId,
+                rejectedBy,
+            });
+
+            // Return updated request
+            return {
+                ...request,
+                status: "rejected",
+                reviewedAt: now,
+                reviewedBy: rejectedBy,
+                reason: reason ?? "No reason provided",
+            };
+        } catch (error) {
+            logError(
+                "Failed to reject token request",
+                error instanceof Error ? error : undefined,
+                {
+                    requestId,
+                    userId: request.userId,
+                },
+            );
+            throw new AppError("INTERNAL_ERROR", 500, "Failed to reject token request");
+        }
     }
 
     /**
@@ -382,15 +662,15 @@ export class TokenService {
         const configDoc = await db.collection("system_config").doc("settings").get();
 
         if (!configDoc.exists) {
-            // Default costs from MASTERPLAN
+            // Default costs tuned for learning/demo anti-abuse
             const defaultCosts: Record<
                 Exclude<OperationType, "admin_grant">,
                 number
             > = {
-                summarize: 2,
-                autoTag: 1,
-                flashcards: 3,
-                ragQuery: 4,
+                summarize: 5,
+                autoTag: 3,
+                flashcards: 8,
+                ragQuery: 10,
             };
             return defaultCosts[operation];
         }
@@ -405,12 +685,12 @@ export class TokenService {
             return costs[operation];
         }
 
-        // Default costs from MASTERPLAN
+        // Default costs tuned for learning/demo anti-abuse
         const defaultCosts: Record<Exclude<OperationType, "admin_grant">, number> = {
-            summarize: 2,
-            autoTag: 1,
-            flashcards: 3,
-            ragQuery: 4,
+            summarize: 5,
+            autoTag: 3,
+            flashcards: 8,
+            ragQuery: 10,
         };
         return defaultCosts[operation];
     }

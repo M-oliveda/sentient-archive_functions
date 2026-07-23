@@ -56,4 +56,8 @@ export interface TokenRequest {
     createdAt: Timestamp;
     reviewedAt?: Timestamp;
     reviewedBy?: string;
+    /** User-provided reason for the token request */
+    justification?: string;
+    /** Admin-provided rejection reason */
+    reason?: string;
 }

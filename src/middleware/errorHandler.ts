@@ -81,6 +81,37 @@ export function errorHandler(
         return;
     }
 
+    // Handle Firestore index errors (FAILED_PRECONDITION)
+    if (
+        error.message &&
+        error.message.includes("FAILED_PRECONDITION") &&
+        error.message.includes("requires an index")
+    ) {
+        const details: Record<string, unknown> = {};
+
+        // In non-production, include the index creation URL for debugging
+        if (process.env["NODE_ENV"] !== "production") {
+            const urlRegex = /https:\/\/console\.firebase\.google\.com[^\s]+/;
+            const urlMatch = urlRegex.exec(error.message);
+            if (urlMatch) {
+                details["indexUrl"] = urlMatch[0];
+            }
+        }
+
+        const response: ApiResponse = {
+            success: false,
+            error: {
+                code: "INTERNAL_ERROR",
+                message: "Database index is building or missing. Please retry shortly.",
+                ...(Object.keys(details).length > 0 && { details }),
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(503).json(response);
+        return;
+    }
+
     // Handle unknown errors
     const response: ApiResponse = {
         success: false,

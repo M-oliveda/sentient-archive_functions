@@ -201,6 +201,117 @@ describe("Error Handler Middleware", () => {
                 );
             }
         });
+
+        test("should handle Firestore index error with 503", () => {
+            const error = new Error(
+                "9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/test-project/firestore/indexes?create_composite=ABC123",
+            );
+
+            errorHandler(
+                error,
+                mockRequest as Request,
+                mockResponse as Response,
+                mockNext,
+            );
+
+            expect(mockResponse.status).toHaveBeenCalledWith(503);
+            expect(mockResponse.json).toHaveBeenCalledWith({
+                success: false,
+                error: {
+                    code: "INTERNAL_ERROR",
+                    message:
+                        "Database index is building or missing. Please retry shortly.",
+                    details: {
+                        indexUrl: expect.stringContaining(
+                            "https://console.firebase.google.com",
+                        ),
+                    },
+                },
+                timestamp: expect.any(String),
+            });
+        });
+
+        test("should handle Firestore index error in production without URL", () => {
+            const originalEnv = process.env["NODE_ENV"];
+            process.env["NODE_ENV"] = "production";
+
+            const error = new Error(
+                "9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/test-project/firestore/indexes?create_composite=ABC123",
+            );
+
+            errorHandler(
+                error,
+                mockRequest as Request,
+                mockResponse as Response,
+                mockNext,
+            );
+
+            expect(mockResponse.status).toHaveBeenCalledWith(503);
+            expect(mockResponse.json).toHaveBeenCalledWith({
+                success: false,
+                error: {
+                    code: "INTERNAL_ERROR",
+                    message:
+                        "Database index is building or missing. Please retry shortly.",
+                },
+                timestamp: expect.any(String),
+            });
+
+            process.env["NODE_ENV"] = originalEnv;
+        });
+
+        test("should handle Firestore index error without URL in message", () => {
+            const error = new Error(
+                "9 FAILED_PRECONDITION: The query requires an index.",
+            );
+
+            errorHandler(
+                error,
+                mockRequest as Request,
+                mockResponse as Response,
+                mockNext,
+            );
+
+            expect(mockResponse.status).toHaveBeenCalledWith(503);
+            expect(mockResponse.json).toHaveBeenCalledWith({
+                success: false,
+                error: {
+                    code: "INTERNAL_ERROR",
+                    message:
+                        "Database index is building or missing. Please retry shortly.",
+                },
+                timestamp: expect.any(String),
+            });
+        });
+
+        test("should not treat non-index FAILED_PRECONDITION as index error", () => {
+            const originalEnv = process.env["NODE_ENV"];
+            process.env["NODE_ENV"] = "development";
+
+            const error = new Error(
+                "9 FAILED_PRECONDITION: Some other precondition",
+            );
+
+            errorHandler(
+                error,
+                mockRequest as Request,
+                mockResponse as Response,
+                mockNext,
+            );
+
+            // Should be handled as generic error, not index error
+            expect(mockResponse.status).toHaveBeenCalledWith(500);
+            expect(mockResponse.json).toHaveBeenCalledWith({
+                success: false,
+                error: {
+                    code: "INTERNAL_ERROR",
+                    message: "9 FAILED_PRECONDITION: Some other precondition",
+                },
+                timestamp: expect.any(String),
+            });
+
+            process.env["NODE_ENV"] = originalEnv;
+        });
     });
 
     describe("notFoundHandler", () => {

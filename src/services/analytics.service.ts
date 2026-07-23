@@ -364,7 +364,7 @@ export class AnalyticsService {
             const dateKey = createdAt.toISOString().split("T")[0];
 
             if (dateKey && dateBuckets.has(dateKey)) {
-                dateBuckets.set(dateKey, (dateBuckets.get(dateKey) ?? 0) + 1);
+                dateBuckets.set(dateKey, dateBuckets.get(dateKey)! + 1);
             }
         });
 

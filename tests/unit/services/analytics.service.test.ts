@@ -494,14 +494,39 @@ describe("Analytics Service", () => {
         });
 
         test("should handle errors in getAnalyticsWithTrends", async () => {
-            mockUsersGet.mockRejectedValue(new Error("Database error"));
+            const getAnalyticsSpy = jest
+                .spyOn(analyticsService, "getAnalytics")
+                .mockResolvedValue({
+                    users: {
+                        total: 0,
+                        active: 0,
+                        inactive: 0,
+                        admins: 0,
+                        clients: 0,
+                    },
+                    notes: { total: 0 },
+                    tokens: { totalGranted: 0, totalSpent: 0, netBalance: 0 },
+                    aiOperations: {
+                        total: 0,
+                        byType: {
+                            summarize: 0,
+                            autoTag: 0,
+                            flashcards: 0,
+                            ragQuery: 0,
+                        },
+                    },
+                });
+            mockTransactionsGet.mockRejectedValue(new Error("Trend query failed"));
 
             await expect(
                 analyticsService.getAnalyticsWithTrends("7d"),
             ).rejects.toMatchObject({
                 code: "INTERNAL_ERROR",
                 statusCode: 500,
+                message: "Failed to retrieve analytics with trends",
             });
+
+            getAnalyticsSpy.mockRestore();
         });
 
         test("should re-throw AppError in getAnalyticsWithTrends", async () => {
@@ -519,14 +544,39 @@ describe("Analytics Service", () => {
         });
 
         test("should handle non-Error thrown objects in getAnalyticsWithTrends", async () => {
-            mockUsersGet.mockRejectedValue("String error");
+            const getAnalyticsSpy = jest
+                .spyOn(analyticsService, "getAnalytics")
+                .mockResolvedValue({
+                    users: {
+                        total: 0,
+                        active: 0,
+                        inactive: 0,
+                        admins: 0,
+                        clients: 0,
+                    },
+                    notes: { total: 0 },
+                    tokens: { totalGranted: 0, totalSpent: 0, netBalance: 0 },
+                    aiOperations: {
+                        total: 0,
+                        byType: {
+                            summarize: 0,
+                            autoTag: 0,
+                            flashcards: 0,
+                            ragQuery: 0,
+                        },
+                    },
+                });
+            mockTransactionsGet.mockRejectedValue("String error");
 
             await expect(
                 analyticsService.getAnalyticsWithTrends("7d"),
             ).rejects.toMatchObject({
                 code: "INTERNAL_ERROR",
                 statusCode: 500,
+                message: "Failed to retrieve analytics with trends",
             });
+
+            getAnalyticsSpy.mockRestore();
         });
     });
 

@@ -1039,5 +1039,216 @@ describe("ActivityService", () => {
 
             expect(result.entries.length).toBeGreaterThan(0);
         });
+
+        test("getSystemWideFeed maps users with missing email to Unknown", async () => {
+            const today = new Date();
+            mockUsersGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("user-no-email", {
+                        displayName: "No Email User",
+                    }),
+                ]),
+            );
+            mockTxGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("tx1", {
+                        userId: "user-no-email",
+                        type: "deduction",
+                        amount: 2,
+                        operation: "summarize",
+                        balanceBefore: 10,
+                        balanceAfter: 8,
+                        createdAt: ts(today),
+                    }),
+                ]),
+            );
+            mockNotesGet.mockResolvedValue(makeSnapshot([]));
+            mockFoldersGet.mockResolvedValue(makeSnapshot([]));
+
+            const result = await activityService.getSystemWideFeed();
+
+            expect(result.entries[0]?.userEmail).toBe("Unknown");
+            expect(result.entries[0]?.userName).toBe("No Email User");
+        });
+
+        test("getSystemWideFeed falls back to operation name when label is missing", async () => {
+            const today = new Date();
+            mockTxGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("tx1", {
+                        userId: "user-1",
+                        type: "grant",
+                        amount: 5,
+                        operation: "unknown_op",
+                        balanceBefore: 0,
+                        balanceAfter: 5,
+                        createdAt: ts(today),
+                    }),
+                ]),
+            );
+            mockNotesGet.mockResolvedValue(makeSnapshot([]));
+            mockFoldersGet.mockResolvedValue(makeSnapshot([]));
+
+            const result = await activityService.getSystemWideFeed({
+                category: "tokens",
+            });
+
+            expect(result.entries[0]?.title).toBe("unknown_op");
+        });
+
+        test("getSystemWideFeed uses Untitled defaults for notes and folders by userId", async () => {
+            const today = new Date();
+            mockUsersGet.mockResolvedValue(makeSnapshot([]));
+            mockTxGet.mockResolvedValue(makeSnapshot([]));
+            mockNotesGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("note1", {
+                        createdAt: ts(today),
+                    }),
+                ]),
+            );
+            mockFoldersGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("folder1", {
+                        createdAt: ts(today),
+                    }),
+                ]),
+            );
+
+            const notesResult = await activityService.getSystemWideFeed({
+                userId: "missing-user",
+                category: "notes",
+            });
+            const foldersResult = await activityService.getSystemWideFeed({
+                userId: "missing-user",
+                category: "folders",
+            });
+
+            expect(notesResult.entries[0]?.description).toBe("Untitled note");
+            expect(notesResult.entries[0]?.userEmail).toBe("Unknown");
+            expect(foldersResult.entries[0]?.description).toBe("Untitled folder");
+            expect(foldersResult.entries[0]?.userEmail).toBe("Unknown");
+        });
+
+        test("getSystemWideFeed uses Untitled defaults for collection-group notes and folders", async () => {
+            const today = new Date();
+            mockUsersGet.mockResolvedValue(makeSnapshot([]));
+            mockTxGet.mockResolvedValue(makeSnapshot([]));
+
+            mockNotesGet.mockResolvedValue({
+                forEach: (
+                    callback: (
+                        doc: ReturnType<typeof makeDoc> & {
+                            ref: { parent: { parent: { id: string } } };
+                        },
+                    ) => void,
+                ) => {
+                    callback({
+                        id: "note1",
+                        data: () => ({
+                            createdAt: ts(today),
+                        }),
+                        ref: {
+                            parent: {
+                                parent: { id: "orphan-user" },
+                            },
+                        },
+                    });
+                },
+            });
+
+            mockFoldersGet.mockResolvedValue({
+                forEach: (
+                    callback: (
+                        doc: ReturnType<typeof makeDoc> & {
+                            ref: { parent: { parent: { id: string } } };
+                        },
+                    ) => void,
+                ) => {
+                    callback({
+                        id: "folder1",
+                        data: () => ({
+                            createdAt: ts(today),
+                        }),
+                        ref: {
+                            parent: {
+                                parent: { id: "orphan-user" },
+                            },
+                        },
+                    });
+                },
+            });
+
+            const notesResult = await activityService.getSystemWideFeed({
+                category: "notes",
+            });
+            const foldersResult = await activityService.getSystemWideFeed({
+                category: "folders",
+            });
+
+            expect(notesResult.entries[0]?.description).toBe("Untitled note");
+            expect(notesResult.entries[0]?.userEmail).toBe("Unknown");
+            expect(foldersResult.entries[0]?.description).toBe("Untitled folder");
+            expect(foldersResult.entries[0]?.userEmail).toBe("Unknown");
+        });
+
+        test("getSystemWideFeed search treats missing userName as non-match", async () => {
+            const today = new Date();
+            mockTxGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("tx1", {
+                        userId: "user-2",
+                        type: "deduction",
+                        amount: 2,
+                        operation: "summarize",
+                        balanceBefore: 10,
+                        balanceAfter: 8,
+                        createdAt: ts(today),
+                        description: "AI Summary",
+                    }),
+                ]),
+            );
+            mockNotesGet.mockResolvedValue(makeSnapshot([]));
+            mockFoldersGet.mockResolvedValue(makeSnapshot([]));
+
+            const result = await activityService.getSystemWideFeed({
+                q: "definitely-not-a-match",
+            });
+
+            expect(result.entries.length).toBe(0);
+        });
+
+        test("collectSystemWideEvents defaults category to all", async () => {
+            const today = new Date();
+            mockTxGet.mockResolvedValue(
+                makeSnapshot([
+                    makeDoc("tx1", {
+                        userId: "user-1",
+                        type: "deduction",
+                        amount: 2,
+                        operation: "summarize",
+                        balanceBefore: 10,
+                        balanceAfter: 8,
+                        createdAt: ts(today),
+                    }),
+                ]),
+            );
+            mockNotesGet.mockResolvedValue(makeSnapshot([]));
+            mockFoldersGet.mockResolvedValue(makeSnapshot([]));
+
+            const collectSystemWideEvents = (
+                activityService as unknown as {
+                    collectSystemWideEvents: (options: {
+                        userId?: string;
+                        startDate?: string;
+                        endDate?: string;
+                    }) => Promise<unknown[]>;
+                }
+            ).collectSystemWideEvents.bind(activityService);
+
+            const events = await collectSystemWideEvents({});
+
+            expect(events.length).toBeGreaterThan(0);
+        });
     });
 });

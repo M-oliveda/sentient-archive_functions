@@ -245,6 +245,8 @@ export const SystemConfigUpdateSchema = z.object({
             model: z.string().optional(),
             maxTokensPerRequest: z.number().int().positive().optional(),
             temperature: z.number().min(0).max(2).optional(),
+            thinkingLevel: z.enum(["minimal", "low", "medium", "high"]).optional(),
+            thinkingBudget: z.number().int().optional(),
         })
         .optional(),
     tokens: z

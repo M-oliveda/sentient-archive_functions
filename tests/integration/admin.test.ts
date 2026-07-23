@@ -634,5 +634,71 @@ describe("Admin Routes Integration Tests", () => {
             // autoTag should be preserved from previous update
             expect(costs["autoTag"]).toBe(3);
         });
+
+        test("should persist feature flag changes and retrieve them correctly", async () => {
+            // Update specific feature flags
+            const updateResponse = await request(expressApp)
+                .post("/v1/admin/config")
+                .set("Authorization", "Bearer test-token")
+                .send({
+                    features: {
+                        summarizeEnabled: false,
+                        ragQueryEnabled: false,
+                    },
+                    ai: {
+                        thinkingLevel: "high",
+                        thinkingBudget: 2048,
+                    },
+                });
+
+            expect(updateResponse.status).toBe(200);
+
+            // Verify the POST response contains updated values
+            const updateData = (updateResponse.body as { data: Record<string, unknown> })
+                .data;
+            const updateFeatures = updateData["features"] as Record<string, boolean>;
+            const updateAi = updateData["ai"] as Record<string, unknown>;
+
+            expect(updateFeatures["summarizeEnabled"]).toBe(false);
+            expect(updateFeatures["ragQueryEnabled"]).toBe(false);
+            expect(updateFeatures["autoTagEnabled"]).toBe(true); // Should remain unchanged
+            expect(updateAi["thinkingLevel"]).toBe("high");
+            expect(updateAi["thinkingBudget"]).toBe(2048);
+
+            // Retrieve the config again to verify persistence
+            const getResponse = await request(expressApp)
+                .get("/v1/admin/config")
+                .set("Authorization", "Bearer test-token");
+
+            expect(getResponse.status).toBe(200);
+
+            const getData = (getResponse.body as { data: Record<string, unknown> }).data;
+            const getFeatures = getData["features"] as Record<string, boolean>;
+            const getAi = getData["ai"] as Record<string, unknown>;
+
+            // Verify persisted values match what was set
+            expect(getFeatures["summarizeEnabled"]).toBe(false);
+            expect(getFeatures["ragQueryEnabled"]).toBe(false);
+            expect(getFeatures["autoTagEnabled"]).toBe(true);
+            expect(getFeatures["flashcardsEnabled"]).toBe(true);
+            expect(getFeatures["fileExtractionEnabled"]).toBe(true);
+            expect(getAi["thinkingLevel"]).toBe("high");
+            expect(getAi["thinkingBudget"]).toBe(2048);
+
+            // Clean up: restore defaults
+            await request(expressApp)
+                .post("/v1/admin/config")
+                .set("Authorization", "Bearer test-token")
+                .send({
+                    features: {
+                        summarizeEnabled: true,
+                        ragQueryEnabled: true,
+                    },
+                    ai: {
+                        thinkingLevel: "low",
+                        thinkingBudget: 0,
+                    },
+                });
+        });
     });
 });

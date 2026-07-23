@@ -20,6 +20,7 @@ import aiRouter from "./routes/ai.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import usersRouter from "./routes/users.routes.js";
 import activityRouter from "./routes/activity.routes.js";
+import configRouter from "./routes/config.routes.js";
 
 // Set global options for all functions
 setGlobalOptions({
@@ -78,6 +79,7 @@ app.use("/v1/ai", aiRouter);
 app.use("/v1/admin", adminRouter);
 app.use("/v1/users", usersRouter);
 app.use("/v1/activity", activityRouter);
+app.use("/v1/config", configRouter);
 
 /**
  * Error Handling

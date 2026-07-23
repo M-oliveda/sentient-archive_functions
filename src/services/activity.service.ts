@@ -35,6 +35,22 @@ interface ActivityQueryOptions {
     offset?: number;
 }
 
+export interface AdminActivityQueryOptions {
+    category?: "all" | ActivityCategory;
+    userId?: string;
+    q?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+}
+
+export interface AdminActivityEntry extends ActivityEntry {
+    userId: string;
+    userEmail: string;
+    userName?: string;
+}
+
 interface InternalActivityEvent {
     id: string;
     category: ActivityCategory;
@@ -42,6 +58,12 @@ interface InternalActivityEvent {
     description: string;
     createdAt: Date;
     iconHint: ActivityIconHint;
+}
+
+interface InternalAdminActivityEvent extends InternalActivityEvent {
+    userId: string;
+    userEmail: string;
+    userName?: string;
 }
 
 function startOfDay(date: Date): Date {
@@ -286,6 +308,395 @@ export class ActivityService {
         });
 
         return events;
+    }
+
+    /**
+     * Get system-wide activity feed (admin only)
+     */
+    async getSystemWideFeed(
+        options: AdminActivityQueryOptions = {},
+    ): Promise<{ entries: AdminActivityEntry[]; total: number }> {
+        const {
+            category = "all",
+            userId,
+            q = "",
+            startDate,
+            endDate,
+            limit = 50,
+            offset = 0,
+        } = options;
+
+        const events = await this.collectSystemWideEvents({
+            category,
+            userId,
+            startDate,
+            endDate,
+        });
+
+        // Apply search filter
+        const filtered = events.filter((e) => this.matchesAdminSearch(e, q));
+
+        // Sort by date descending
+        const sorted = filtered.sort(
+            (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+
+        // Get total count and paginate
+        const total = sorted.length;
+        const paginated = sorted.slice(offset, offset + limit);
+
+        // Convert to AdminActivityEntry format
+        const entries: AdminActivityEntry[] = paginated.map((e) => ({
+            id: e.id,
+            category: e.category,
+            title: e.title,
+            description: e.description,
+            createdAt: e.createdAt.toISOString(),
+            iconHint: e.iconHint,
+            userId: e.userId,
+            userEmail: e.userEmail,
+            userName: e.userName,
+        }));
+
+        return { entries, total };
+    }
+
+    /**
+     * Collect system-wide activity events
+     */
+    private async collectSystemWideEvents(options: {
+        category?: "all" | ActivityCategory;
+        userId?: string;
+        startDate?: string;
+        endDate?: string;
+    }): Promise<InternalAdminActivityEvent[]> {
+        const { category = "all", userId, startDate, endDate } = options;
+
+        // Build date filters
+        const start = startDate ? new Date(startDate) : undefined;
+        const end = endDate ? new Date(endDate) : undefined;
+
+        // Get user map for enrichment
+        const userMap = await this.getUserMap();
+
+        // Collect events based on category
+        const events: InternalAdminActivityEvent[] = [];
+
+        if (category === "all" || category === "ai" || category === "tokens") {
+            const txEvents = await this.collectSystemWideTransactionEvents(
+                userMap,
+                userId,
+                start,
+                end,
+                category,
+            );
+            events.push(...txEvents);
+        }
+
+        if (category === "all" || category === "notes") {
+            const noteEvents = await this.collectSystemWideNoteEvents(
+                userMap,
+                userId,
+                start,
+                end,
+            );
+            events.push(...noteEvents);
+        }
+
+        if (category === "all" || category === "folders") {
+            const folderEvents = await this.collectSystemWideFolderEvents(
+                userMap,
+                userId,
+                start,
+                end,
+            );
+            events.push(...folderEvents);
+        }
+
+        return events;
+    }
+
+    /**
+     * Get user map for enriching events with user info
+     */
+    private async getUserMap(): Promise<Map<string, { email: string; name?: string }>> {
+        const db = getDb();
+        const usersSnapshot = await db.collection("users").get();
+        const userMap = new Map<string, { email: string; name?: string }>();
+
+        usersSnapshot.forEach((doc) => {
+            const data = doc.data();
+            userMap.set(doc.id, {
+                email: (data["email"] as string) || "Unknown",
+                name: (data["displayName"] as string) || undefined,
+            });
+        });
+
+        return userMap;
+    }
+
+    /**
+     * Collect system-wide transaction events
+     */
+    private async collectSystemWideTransactionEvents(
+        userMap: Map<string, { email: string; name?: string }>,
+        userId?: string,
+        start?: Date,
+        end?: Date,
+        category?: "all" | ActivityCategory,
+    ): Promise<InternalAdminActivityEvent[]> {
+        const db = getDb();
+        let query = db.collection("transactions") as FirebaseFirestore.Query;
+
+        if (userId) {
+            query = query.where("userId", "==", userId);
+        }
+
+        if (start) {
+            query = query.where("createdAt", ">=", start);
+        }
+
+        if (end) {
+            query = query.where("createdAt", "<=", end);
+        }
+
+        const snapshot = await query.orderBy("createdAt", "desc").limit(500).get();
+
+        const events: InternalAdminActivityEvent[] = [];
+
+        snapshot.forEach((doc) => {
+            const tx = doc.data() as Transaction;
+            const isAi = AI_OPERATIONS.includes(tx.operation);
+            const eventCategory: ActivityCategory = isAi ? "ai" : "tokens";
+
+            // Skip if category doesn't match
+            if (category !== "all" && category !== eventCategory) {
+                return;
+            }
+
+            const userInfo = userMap.get(tx.userId) ?? {
+                email: "Unknown",
+                name: undefined,
+            };
+            const label = AI_OPERATION_LABELS[tx.operation] ?? tx.operation;
+            const amountSign = tx.type === "grant" ? "+" : "−";
+
+            events.push({
+                id: `tx-${doc.id}`,
+                category: eventCategory,
+                title: label,
+                description:
+                    tx.description ||
+                    `${amountSign}${tx.amount} tokens · balance ${tx.balanceAfter}`,
+                createdAt: timestampToDate(tx.createdAt),
+                iconHint: isAi ? "bot" : "coins",
+                userId: tx.userId,
+                userEmail: userInfo.email,
+                userName: userInfo.name,
+            });
+        });
+
+        return events;
+    }
+
+    /**
+     * Collect system-wide note events
+     */
+    private async collectSystemWideNoteEvents(
+        userMap: Map<string, { email: string; name?: string }>,
+        userId?: string,
+        start?: Date,
+        end?: Date,
+    ): Promise<InternalAdminActivityEvent[]> {
+        const db = getDb();
+        const events: InternalAdminActivityEvent[] = [];
+
+        if (userId) {
+            // Query specific user's notes
+            let query = db
+                .collection("users")
+                .doc(userId)
+                .collection("notes") as FirebaseFirestore.Query;
+
+            if (start) {
+                query = query.where("createdAt", ">=", start);
+            }
+
+            if (end) {
+                query = query.where("createdAt", "<=", end);
+            }
+
+            const snapshot = await query.limit(200).get();
+            const userInfo = userMap.get(userId) ?? {
+                email: "Unknown",
+                name: undefined,
+            };
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const title = (data["title"] as string) || "Untitled note";
+                const createdAt = timestampToDate(data["createdAt"]);
+
+                events.push({
+                    id: `note-create-${doc.id}`,
+                    category: "notes",
+                    title: "Note created",
+                    description: title,
+                    createdAt,
+                    iconHint: "file-text",
+                    userId,
+                    userEmail: userInfo.email,
+                    userName: userInfo.name,
+                });
+            });
+        } else {
+            // Query all notes using collection group
+            let query = db.collectionGroup("notes") as FirebaseFirestore.Query;
+
+            if (start) {
+                query = query.where("createdAt", ">=", start);
+            }
+
+            if (end) {
+                query = query.where("createdAt", "<=", end);
+            }
+
+            const snapshot = await query.limit(200).get();
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const noteUserId = doc.ref.parent.parent?.id;
+                if (!noteUserId) return;
+
+                const userInfo = userMap.get(noteUserId) ?? {
+                    email: "Unknown",
+                    name: undefined,
+                };
+                const title = (data["title"] as string) || "Untitled note";
+                const createdAt = timestampToDate(data["createdAt"]);
+
+                events.push({
+                    id: `note-create-${doc.id}`,
+                    category: "notes",
+                    title: "Note created",
+                    description: title,
+                    createdAt,
+                    iconHint: "file-text",
+                    userId: noteUserId,
+                    userEmail: userInfo.email,
+                    userName: userInfo.name,
+                });
+            });
+        }
+
+        return events;
+    }
+
+    /**
+     * Collect system-wide folder events
+     */
+    private async collectSystemWideFolderEvents(
+        userMap: Map<string, { email: string; name?: string }>,
+        userId?: string,
+        start?: Date,
+        end?: Date,
+    ): Promise<InternalAdminActivityEvent[]> {
+        const db = getDb();
+        const events: InternalAdminActivityEvent[] = [];
+
+        if (userId) {
+            // Query specific user's folders
+            let query = db
+                .collection("users")
+                .doc(userId)
+                .collection("folders") as FirebaseFirestore.Query;
+
+            if (start) {
+                query = query.where("createdAt", ">=", start);
+            }
+
+            if (end) {
+                query = query.where("createdAt", "<=", end);
+            }
+
+            const snapshot = await query.limit(200).get();
+            const userInfo = userMap.get(userId) ?? {
+                email: "Unknown",
+                name: undefined,
+            };
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const name = (data["name"] as string) || "Untitled folder";
+
+                events.push({
+                    id: `folder-create-${doc.id}`,
+                    category: "folders",
+                    title: "Folder created",
+                    description: name,
+                    createdAt: timestampToDate(data["createdAt"]),
+                    iconHint: "folder",
+                    userId,
+                    userEmail: userInfo.email,
+                    userName: userInfo.name,
+                });
+            });
+        } else {
+            // Query all folders using collection group
+            let query = db.collectionGroup("folders") as FirebaseFirestore.Query;
+
+            if (start) {
+                query = query.where("createdAt", ">=", start);
+            }
+
+            if (end) {
+                query = query.where("createdAt", "<=", end);
+            }
+
+            const snapshot = await query.limit(200).get();
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const folderUserId = doc.ref.parent.parent?.id;
+                if (!folderUserId) return;
+
+                const userInfo = userMap.get(folderUserId) ?? {
+                    email: "Unknown",
+                    name: undefined,
+                };
+                const name = (data["name"] as string) || "Untitled folder";
+
+                events.push({
+                    id: `folder-create-${doc.id}`,
+                    category: "folders",
+                    title: "Folder created",
+                    description: name,
+                    createdAt: timestampToDate(data["createdAt"]),
+                    iconHint: "folder",
+                    userId: folderUserId,
+                    userEmail: userInfo.email,
+                    userName: userInfo.name,
+                });
+            });
+        }
+
+        return events;
+    }
+
+    /**
+     * Match admin search query
+     */
+    private matchesAdminSearch(event: InternalAdminActivityEvent, q: string): boolean {
+        if (!q) {
+            return true;
+        }
+        const needle = q.toLowerCase();
+        return (
+            event.title.toLowerCase().includes(needle) ||
+            event.description.toLowerCase().includes(needle) ||
+            event.userEmail.toLowerCase().includes(needle) ||
+            (event.userName?.toLowerCase().includes(needle) ?? false)
+        );
     }
 }
 

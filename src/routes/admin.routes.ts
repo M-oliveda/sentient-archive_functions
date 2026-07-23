@@ -7,6 +7,9 @@
  * - PUT /users/:id - Update user (role, isActive, tokenBalance)
  * - GET /config - Get system configuration
  * - POST /config - Update system configuration
+ * - GET /token-requests - List token requests for admin review
+ * - POST /token-requests/:id/approve - Approve a token request
+ * - POST /token-requests/:id/reject - Reject a token request
  */
 
 import { Router, Request, Response } from "express";
@@ -16,12 +19,17 @@ import { asyncHandler, AppError } from "@/middleware/errorHandler.js";
 import { analyticsService } from "@/services/analytics.service.js";
 import { configService } from "@/services/config.service.js";
 import { statsService, AdminStats } from "@/services/stats.service.js";
+import { tokenService } from "@/services/token.service.js";
+import { activityService } from "@/services/activity.service.js";
 import { listUsers, updateUserAsAdmin, getUserByUid } from "@/utils/firestore.js";
 import { logInfo, logEvent } from "@/utils/logger.js";
 import {
     AdminUsersQuerySchema,
     AdminUserUpdateSchema,
     SystemConfigUpdateSchema,
+    AdminTokenRequestsQuerySchema,
+    AdminApproveTokenRequestSchema,
+    AdminRejectTokenRequestSchema,
     validateRequest,
 } from "@/utils/validation.js";
 import { ApiResponse } from "@/types/api.js";
@@ -81,6 +89,47 @@ router.get(
         logEvent("admin_analytics_queried", { adminId });
 
         const response: ApiResponse<SystemAnalytics> = {
+            success: true,
+            data: analytics,
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
+
+/**
+ * GET /analytics/trends
+ *
+ * Get system-wide analytics with time-series trends
+ *
+ * Query params:
+ * - dateRange: '7d' | '30d' | '90d' (default: '30d')
+ *
+ * Response: SystemAnalyticsWithTrends
+ */
+router.get(
+    "/analytics/trends",
+    asyncHandler(async (req: Request, res: Response) => {
+        const adminId = req.uid!;
+        const dateRange = (req.query["dateRange"] as "7d" | "30d" | "90d") || "30d";
+
+        // Validate dateRange
+        if (!["7d", "30d", "90d"].includes(dateRange)) {
+            throw new AppError(
+                "INVALID_REQUEST",
+                400,
+                "Invalid dateRange. Must be '7d', '30d', or '90d'",
+            );
+        }
+
+        logInfo("Admin analytics trends request", { adminId, dateRange });
+
+        const analytics = await analyticsService.getAnalyticsWithTrends(dateRange);
+
+        logEvent("admin_analytics_trends_queried", { adminId, dateRange });
+
+        const response: ApiResponse<typeof analytics> = {
             success: true,
             data: analytics,
             timestamp: new Date().toISOString(),
@@ -341,6 +390,289 @@ router.post(
         const response: ApiResponse<typeof serializedConfig> = {
             success: true,
             data: serializedConfig,
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
+
+/**
+ * GET /token-requests
+ *
+ * List token requests for admin review with filtering
+ *
+ * Query params:
+ * - limit: number (1-100, default: 20)
+ * - offset: number (default: 0)
+ * - status: 'pending' | 'approved' | 'rejected' | 'all' (default: 'all')
+ * - userId: string (optional, filter by user)
+ * - startDate: string (YYYY-MM-DD format, optional)
+ * - endDate: string (YYYY-MM-DD format, optional)
+ *
+ * Response: { requests: TokenRequest[], total: number, limit: number, offset: number }
+ */
+router.get(
+    "/token-requests",
+    asyncHandler(async (req: Request, res: Response) => {
+        const adminId = req.uid!;
+
+        // Validate query parameters
+        const query = validateRequest(AdminTokenRequestsQuerySchema, req.query);
+
+        logInfo("Admin token requests list", {
+            adminId,
+            status: query.status,
+            userId: query.userId,
+        });
+
+        const requests = await tokenService.getAdminTokenRequests({
+            limit: query.limit,
+            offset: query.offset,
+            status: query.status === "all" ? undefined : query.status,
+            userId: query.userId,
+            startDate: query.startDate,
+            endDate: query.endDate,
+        });
+
+        logEvent("admin_token_requests_listed", {
+            adminId,
+            count: requests.length,
+        });
+
+        // Serialize requests for response
+        const serializedRequests = requests.map((req) => ({
+            ...req,
+            createdAt: req.createdAt?.toDate?.()?.toISOString() ?? null,
+            reviewedAt: req.reviewedAt?.toDate?.()?.toISOString() ?? null,
+        }));
+
+        const response: ApiResponse<{
+            requests: typeof serializedRequests;
+            total: number;
+            limit: number;
+            offset: number;
+        }> = {
+            success: true,
+            data: {
+                requests: serializedRequests,
+                total: serializedRequests.length, // Note: this is approximate; a full count query would be needed for exact total
+                limit: query.limit ?? 20,
+                offset: query.offset ?? 0,
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
+
+/**
+ * POST /token-requests/:id/approve
+ *
+ * Approve a token request and grant tokens to the user
+ *
+ * Request body:
+ * - amount: number (optional, overrides requested amount)
+ * - notes: string (optional, approval notes)
+ *
+ * Response: Approved TokenRequest
+ */
+router.post(
+    "/token-requests/:id/approve",
+    asyncHandler(async (req: Request, res: Response) => {
+        const adminId = req.uid!;
+        const requestIdParam = req.params["id"];
+        const requestId = Array.isArray(requestIdParam)
+            ? requestIdParam[0]
+            : requestIdParam;
+
+        if (!requestId) {
+            throw new AppError("INVALID_REQUEST", 400, "Request ID is required");
+        }
+
+        // Validate request body
+        const { amount, notes } = validateRequest(
+            AdminApproveTokenRequestSchema,
+            req.body,
+        );
+
+        logInfo("Admin token request approval", {
+            adminId,
+            requestId,
+            amount,
+        });
+
+        const approvedRequest = await tokenService.approveTokenRequest(
+            requestId,
+            adminId,
+            amount,
+            notes,
+        );
+
+        logEvent("admin_token_request_approved", {
+            adminId,
+            requestId,
+            userId: approvedRequest.userId,
+        });
+
+        // Serialize for response
+        const serialized = {
+            ...approvedRequest,
+            createdAt: approvedRequest.createdAt?.toDate?.()?.toISOString() ?? null,
+            reviewedAt: approvedRequest.reviewedAt?.toDate?.()?.toISOString() ?? null,
+        };
+
+        const response: ApiResponse<typeof serialized> = {
+            success: true,
+            data: serialized,
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
+
+/**
+ * POST /token-requests/:id/reject
+ *
+ * Reject a token request
+ *
+ * Request body:
+ * - reason: string (optional, rejection reason)
+ *
+ * Response: Rejected TokenRequest
+ */
+router.post(
+    "/token-requests/:id/reject",
+    asyncHandler(async (req: Request, res: Response) => {
+        const adminId = req.uid!;
+        const requestIdParam = req.params["id"];
+        const requestId = Array.isArray(requestIdParam)
+            ? requestIdParam[0]
+            : requestIdParam;
+
+        if (!requestId) {
+            throw new AppError("INVALID_REQUEST", 400, "Request ID is required");
+        }
+
+        // Validate request body
+        const { reason } = validateRequest(AdminRejectTokenRequestSchema, req.body);
+
+        logInfo("Admin token request rejection", {
+            adminId,
+            requestId,
+            reason,
+        });
+
+        const rejectedRequest = await tokenService.rejectTokenRequest(
+            requestId,
+            adminId,
+            reason,
+        );
+
+        logEvent("admin_token_request_rejected", {
+            adminId,
+            requestId,
+            userId: rejectedRequest.userId,
+        });
+
+        // Serialize for response
+        const serialized = {
+            ...rejectedRequest,
+            createdAt: rejectedRequest.createdAt?.toDate?.()?.toISOString() ?? null,
+            reviewedAt: rejectedRequest.reviewedAt?.toDate?.()?.toISOString() ?? null,
+        };
+
+        const response: ApiResponse<typeof serialized> = {
+            success: true,
+            data: serialized,
+            timestamp: new Date().toISOString(),
+        };
+
+        res.status(200).json(response);
+    }),
+);
+
+/**
+ * GET /activity-logs
+ *
+ * Get system-wide activity logs (admin only)
+ *
+ * Query params:
+ * - limit: number (1-100, default 50)
+ * - offset: number (default 0)
+ * - category: 'all' | 'ai' | 'tokens' | 'notes' | 'folders' (default 'all')
+ * - userId: string (optional, filter by user)
+ * - q: string (optional, search query)
+ * - startDate: string (optional, ISO date)
+ * - endDate: string (optional, ISO date)
+ *
+ * Response: { entries: AdminActivityEntry[], total: number, limit: number, offset: number }
+ */
+router.get(
+    "/activity-logs",
+    asyncHandler(async (req: Request, res: Response) => {
+        const adminId = req.uid!;
+
+        // Parse and validate query parameters
+        const limit = Math.min(parseInt(req.query["limit"] as string) || 50, 100);
+        const offset = parseInt(req.query["offset"] as string) || 0;
+        const category = (req.query["category"] as string) || "all";
+        const userId = req.query["userId"] as string | undefined;
+        const q = (req.query["q"] as string) || "";
+        const startDate = req.query["startDate"] as string | undefined;
+        const endDate = req.query["endDate"] as string | undefined;
+
+        // Validate category
+        if (!["all", "ai", "tokens", "notes", "folders"].includes(category)) {
+            throw new AppError(
+                "INVALID_REQUEST",
+                400,
+                "Invalid category. Must be 'all', 'ai', 'tokens', 'notes', or 'folders'",
+            );
+        }
+
+        logInfo("Admin activity logs request", {
+            adminId,
+            category,
+            userId,
+            q,
+            startDate,
+            endDate,
+            limit,
+            offset,
+        });
+
+        const { entries, total } = await activityService.getSystemWideFeed({
+            category: category as "all" | "ai" | "tokens" | "notes" | "folders",
+            userId,
+            q,
+            startDate,
+            endDate,
+            limit,
+            offset,
+        });
+
+        logEvent("admin_activity_logs_queried", {
+            adminId,
+            count: entries.length,
+            total,
+        });
+
+        const response: ApiResponse<{
+            entries: typeof entries;
+            total: number;
+            limit: number;
+            offset: number;
+        }> = {
+            success: true,
+            data: {
+                entries,
+                total,
+                limit,
+                offset,
+            },
             timestamp: new Date().toISOString(),
         };
 

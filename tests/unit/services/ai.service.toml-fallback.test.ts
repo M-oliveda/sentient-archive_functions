@@ -115,8 +115,9 @@ jest.unstable_mockModule("firebase-functions/v2", () => ({
 jest.unstable_mockModule("@/utils/gemini.js", () => ({
     __esModule: true,
     getGenerativeModel: jest.fn(() => mockModel),
+    DEFAULT_MODEL: "gemini-3.5-flash",
     DEFAULT_MAX_TOKENS: 2048,
-    DEFAULT_TEMPERATURE: 1,
+    DEFAULT_TEMPERATURE: 1.0,
 }));
 
 // Mock TOML utilities to throw errors for testing fallback behavior
@@ -158,9 +159,9 @@ describe("AI Service TOML Fallback", () => {
 
             // getDefaultAIConfig can succeed
             mockGetDefaultAIConfig.mockReturnValue({
-                temperature: 1,
+                temperature: 1.0,
                 maxTokens: 2048,
-                model: "gemini-flash-lite-latest",
+                model: "gemini-3.5-flash",
             });
 
             mockGenerateContent.mockResolvedValue(
@@ -242,9 +243,9 @@ describe("AI Service TOML Fallback", () => {
             const config = await service.getConfig();
 
             // Should use fallback values
-            expect(config.model).toBe("gemini-flash-lite-latest");
+            expect(config.model).toBe("gemini-3.5-flash");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(1);
+            expect(config.temperature).toBe(1.0);
             expect(config.systemPrompts.summarize).toContain("summarizes text content");
             expect(config.systemPrompts.autoTag).toContain("generates relevant tags");
             expect(config.systemPrompts.flashcards).toContain("educational flashcards");

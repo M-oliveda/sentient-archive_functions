@@ -696,13 +696,15 @@ async function seedSystemConfig(): Promise<void> {
     const adminUser = createdUsers.find((u) => u.role === "admin");
 
     await db
-        .collection("config")
-        .doc("system")
+        .collection("system_config")
+        .doc("settings")
         .set({
             ai: {
-                model: "gemini-1.5-flash",
+                model: "gemini-3.5-flash",
                 maxTokensPerRequest: 2048,
-                temperature: 0.7,
+                temperature: 1.0,
+                thinkingLevel: "low",
+                thinkingBudget: 0,
                 systemPrompts: {
                     summarize:
                         "You are a helpful assistant that summarizes notes concisely while preserving key information.",
@@ -716,16 +718,16 @@ async function seedSystemConfig(): Promise<void> {
             },
             tokens: {
                 initialGrant: {
-                    production: 500,
-                    development: 1000,
-                    staging: 1000,
-                    local: 1000,
+                    production: 25,
+                    development: 50,
+                    staging: 40,
+                    local: 50,
                 },
                 costs: {
-                    summarize: 10,
-                    autoTag: 5,
-                    flashcards: 15,
-                    ragQuery: 20,
+                    summarize: 5,
+                    autoTag: 3,
+                    flashcards: 8,
+                    ragQuery: 10,
                 },
                 maxPerOperation: 100,
             },
@@ -742,8 +744,8 @@ async function seedSystemConfig(): Promise<void> {
                 allowedExtensions: [".pdf", ".txt", ".md"],
             },
             rateLimits: {
-                aiRequestsPerHour: 60,
-                fileExtractionsPerDay: 20,
+                aiRequestsPerHour: 20,
+                fileExtractionsPerDay: 10,
             },
             lastUpdatedBy: adminUser?.uid ?? "system",
             lastUpdatedAt: Timestamp.now(),

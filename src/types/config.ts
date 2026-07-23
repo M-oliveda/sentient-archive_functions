@@ -21,6 +21,18 @@ export interface AIConfig {
     model: string;
     maxTokensPerRequest: number;
     temperature: number;
+    /**
+     * Thinking level for Gemini 3+ models
+     * Values: "minimal" | "low" | "medium" | "high"
+     * See: https://ai.google.dev/gemini-api/docs/thinking
+     */
+    thinkingLevel?: "minimal" | "low" | "medium" | "high";
+    /**
+     * Thinking budget for Gemini 2.5 models (numeric)
+     * -1 = dynamic, 0 = disabled, >0 = specific token count
+     * See: https://ai.google.dev/gemini-api/docs/thinking
+     */
+    thinkingBudget?: number;
     systemPrompts: {
         summarize: string;
         autoTag: string;

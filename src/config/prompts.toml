@@ -50,4 +50,4 @@ Be concise and accurate in your response."""
 [defaults]
 temperature = 1.0
 max_tokens = 2048
-model = "gemini-flash-lite-latest"
+model = "gemini-3.5-flash"

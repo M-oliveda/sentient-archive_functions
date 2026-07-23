@@ -26,7 +26,13 @@ interface MockDocSnapshot {
 // Type for mock call arguments
 interface MockCallArgs {
     contents: [{ parts: [{ text: string }] }];
-    generationConfig?: { temperature: number; maxOutputTokens?: number };
+    generationConfig?: {
+        temperature: number;
+        maxOutputTokens?: number;
+        responseMimeType?: string;
+        thinkingLevel?: string;
+        thinkingBudget?: number;
+    };
 }
 
 // Create mock response helper
@@ -118,8 +124,9 @@ jest.unstable_mockModule("firebase-functions/v2", () => ({
 jest.unstable_mockModule("@/utils/gemini.js", () => ({
     __esModule: true,
     getGenerativeModel: jest.fn(() => mockModel),
+    DEFAULT_MODEL: "gemini-3.5-flash",
     DEFAULT_MAX_TOKENS: 2048,
-    DEFAULT_TEMPERATURE: 0.7,
+    DEFAULT_TEMPERATURE: 1.0,
 }));
 
 // Import module dynamically after mocking
@@ -651,6 +658,135 @@ describe("AI Service", () => {
                 "You are a helpful assistant that summarizes text content",
             );
         });
+
+        test("should include thinkingLevel in generation config when provided", async () => {
+            mockDocGet.mockResolvedValue({
+                exists: true,
+                data: () => ({
+                    ai: {
+                        model: "gemini-3.5-flash",
+                        temperature: 0.7,
+                        maxTokensPerRequest: 2048,
+                        thinkingLevel: "high",
+                    },
+                }),
+            });
+
+            mockGenerateContent.mockResolvedValue(createMockResponse("Summary", 100));
+
+            await aiService.summarize("user-123", { content: "Content" });
+
+            const args = getMockCallArgs(0);
+            expect(args.generationConfig).toHaveProperty("thinkingLevel", "high");
+        });
+
+        test("should include thinkingBudget in generation config when provided", async () => {
+            mockDocGet.mockResolvedValue({
+                exists: true,
+                data: () => ({
+                    ai: {
+                        model: "gemini-3.5-flash",
+                        temperature: 0.7,
+                        maxTokensPerRequest: 2048,
+                        thinkingBudget: 5000,
+                    },
+                }),
+            });
+
+            mockGenerateContent.mockResolvedValue(createMockResponse("Summary", 100));
+
+            await aiService.summarize("user-123", { content: "Content" });
+
+            const args = getMockCallArgs(0);
+            expect(args.generationConfig).toHaveProperty("thinkingBudget", 5000);
+        });
+
+        test("should include both thinkingLevel and thinkingBudget in autoTag", async () => {
+            mockDocGet.mockResolvedValue({
+                exists: true,
+                data: () => ({
+                    ai: {
+                        model: "gemini-3.5-flash",
+                        temperature: 0.7,
+                        maxTokensPerRequest: 2048,
+                        thinkingLevel: "medium",
+                        thinkingBudget: 3000,
+                    },
+                }),
+            });
+
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse(JSON.stringify(["tag1", "tag2"]), 100),
+            );
+
+            await aiService.autoTag("user-123", { title: "Test", content: "Content" });
+
+            const args = getMockCallArgs(0);
+            expect(args.generationConfig).toHaveProperty("thinkingLevel", "medium");
+            expect(args.generationConfig).toHaveProperty("thinkingBudget", 3000);
+        });
+
+        test("should include both thinkingLevel and thinkingBudget in generateFlashcards", async () => {
+            mockDocGet.mockResolvedValue({
+                exists: true,
+                data: () => ({
+                    ai: {
+                        model: "gemini-3.5-flash",
+                        temperature: 0.7,
+                        maxTokensPerRequest: 2048,
+                        thinkingLevel: "low",
+                        thinkingBudget: 1000,
+                    },
+                }),
+            });
+
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse(
+                    JSON.stringify([
+                        { front: "Q1", back: "A1" },
+                        { front: "Q2", back: "A2" },
+                    ]),
+                    100,
+                ),
+            );
+
+            await aiService.generateFlashcards("user-123", {
+                title: "Test",
+                content: "Content",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.generationConfig).toHaveProperty("thinkingLevel", "low");
+            expect(args.generationConfig).toHaveProperty("thinkingBudget", 1000);
+        });
+
+        test("should include both thinkingLevel and thinkingBudget in ragQuery", async () => {
+            mockDocGet.mockResolvedValue({
+                exists: true,
+                data: () => ({
+                    ai: {
+                        model: "gemini-3.5-flash",
+                        temperature: 0.7,
+                        maxTokensPerRequest: 2048,
+                        thinkingLevel: "high",
+                        thinkingBudget: 8000,
+                    },
+                }),
+            });
+
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("Answer to the question", 100),
+            );
+
+            await aiService.ragQuery("user-123", {
+                query: "What is this?",
+                context: "Some context",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.generationConfig).toHaveProperty("thinkingLevel", "high");
+            expect(args.generationConfig).toHaveProperty("thinkingBudget", 8000);
+        });
     });
 
     describe("getConfig", () => {
@@ -662,9 +798,9 @@ describe("AI Service", () => {
 
             const config = await aiService.getConfig();
 
-            expect(config.model).toBe("gemini-flash-lite-latest");
+            expect(config.model).toBe("gemini-3.5-flash");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(1);
+            expect(config.temperature).toBe(1.0);
             expect(config.systemPrompts.summarize).toContain("summarizes text content");
         });
 
@@ -683,7 +819,7 @@ describe("AI Service", () => {
 
             expect(config.model).toBe("custom-model");
             expect(config.maxTokensPerRequest).toBe(2048); // default
-            expect(config.temperature).toBe(1); // default
+            expect(config.temperature).toBe(1.0); // default
         });
 
         test("should use defaults when ai config exists but fields are undefined", async () => {
@@ -706,9 +842,9 @@ describe("AI Service", () => {
 
             const config = await aiService.getConfig();
 
-            expect(config.model).toBe("gemini-flash-lite-latest");
+            expect(config.model).toBe("gemini-3.5-flash");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(1);
+            expect(config.temperature).toBe(1.0);
             expect(config.systemPrompts.summarize).toContain("summarizes text content");
             expect(config.systemPrompts.autoTag).toContain("generates relevant tags");
             expect(config.systemPrompts.flashcards).toContain("educational flashcards");
@@ -725,9 +861,9 @@ describe("AI Service", () => {
 
             const config = await aiService.getConfig();
 
-            expect(config.model).toBe("gemini-flash-lite-latest");
+            expect(config.model).toBe("gemini-3.5-flash");
             expect(config.maxTokensPerRequest).toBe(2048);
-            expect(config.temperature).toBe(1);
+            expect(config.temperature).toBe(1.0);
         });
     });
 

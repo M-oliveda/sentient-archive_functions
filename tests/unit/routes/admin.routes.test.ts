@@ -207,7 +207,7 @@ describe("Admin Routes", () => {
     });
 
     describe("Route count", () => {
-        test("should have exactly 6 route endpoints", () => {
+        test("should have exactly 11 route endpoints", () => {
             const routeLayers = (adminRouter.stack as RouterLayer[]).filter(
                 (layer) => layer.route,
             );
@@ -220,7 +220,7 @@ describe("Admin Routes", () => {
                 ),
             );
 
-            expect(routes.size).toBe(6);
+            expect(routes.size).toBe(11);
         });
     });
 });

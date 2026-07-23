@@ -217,6 +217,7 @@ router.get(
  *
  * Request body:
  * - amount: number (1-10000, required)
+ * - justification: string (optional, 3-500 chars)
  *
  * Response: TokenRequest record
  */
@@ -226,11 +227,15 @@ router.post(
     asyncHandler(async (req: Request, res: Response) => {
         const userId = req.uid!;
 
-        const { amount } = validateRequest(TokenRequestSchema, req.body);
+        const { amount, justification } = validateRequest(TokenRequestSchema, req.body);
 
         logInfo("Token request submitted", { userId, amount });
 
-        const tokenRequest = await tokenService.requestTokens(userId, amount);
+        const tokenRequest = await tokenService.requestTokens(
+            userId,
+            amount,
+            justification,
+        );
 
         const response: ApiResponse<
             Omit<TokenRequest, "createdAt"> & { createdAt: string }

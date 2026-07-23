@@ -147,6 +147,12 @@ export const TokenRequestSchema = z.object({
         .int()
         .positive("Amount must be positive")
         .max(10000, "Cannot request more than 10,000 tokens at once"),
+    justification: z
+        .string()
+        .trim()
+        .min(3, "Justification must be at least 3 characters")
+        .max(500, "Justification cannot exceed 500 characters")
+        .optional(),
 });
 
 export type TokenRequestInput = z.infer<typeof TokenRequestSchema>;
@@ -322,6 +328,61 @@ export const AdminAnalyticsQuerySchema = z.object({
 });
 
 export type AdminAnalyticsQuery = z.infer<typeof AdminAnalyticsQuerySchema>;
+
+// Admin Token Requests Query (for listing token requests)
+export const AdminTokenRequestsQuerySchema = z.object({
+    limit: z.coerce
+        .number()
+        .int()
+        .min(1, "Limit must be at least 1")
+        .max(100, "Limit cannot exceed 100")
+        .optional()
+        .default(20),
+    offset: z.coerce
+        .number()
+        .int()
+        .min(0, "Offset cannot be negative")
+        .optional()
+        .default(0),
+    status: z
+        .enum(["pending", "approved", "rejected", "all"])
+        .optional()
+        .default("all"),
+    userId: z.string().optional(),
+    startDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)")
+        .optional(),
+    endDate: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)")
+        .optional(),
+});
+
+export type AdminTokenRequestsQuery = z.infer<typeof AdminTokenRequestsQuerySchema>;
+
+// Admin Token Request Approval
+export const AdminApproveTokenRequestSchema = z.object({
+    amount: z
+        .number()
+        .int()
+        .positive("Amount must be positive")
+        .max(10000, "Cannot approve more than 10,000 tokens at once")
+        .optional(),
+    notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),
+});
+
+export type AdminApproveTokenRequest = z.infer<typeof AdminApproveTokenRequestSchema>;
+
+// Admin Token Request Rejection
+export const AdminRejectTokenRequestSchema = z.object({
+    reason: z
+        .string()
+        .max(500, "Rejection reason cannot exceed 500 characters")
+        .optional(),
+});
+
+export type AdminRejectTokenRequest = z.infer<typeof AdminRejectTokenRequestSchema>;
 
 /**
  * Response Schemas

@@ -9,11 +9,13 @@ import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { logWarn } from "@/utils/logger.js";
 
 /**
- * Default model configuration from MASTERPLAN
+ * Default model configuration
+ * Updated for Gemini 3+ models (July 2026)
+ * See: https://ai.google.dev/gemini-api/docs/models/gemini
  */
-export const DEFAULT_MODEL = "gemini-flash-lite-latest";
+export const DEFAULT_MODEL = "gemini-3.5-flash";
 export const DEFAULT_MAX_TOKENS = 2048;
-export const DEFAULT_TEMPERATURE = 1;
+export const DEFAULT_TEMPERATURE = 1.0;
 
 /**
  * Gemini client singleton

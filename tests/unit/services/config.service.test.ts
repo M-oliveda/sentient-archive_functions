@@ -100,8 +100,14 @@ describe("Config Service", () => {
 
             const config = await configService.getConfig();
 
-            expect(config.ai.model).toBe("gemini-1.5-flash");
-            expect(config.tokens.costs.summarize).toBe(2);
+            expect(config.ai.model).toBe("gemini-3.5-flash");
+            expect(config.ai.maxTokensPerRequest).toBe(2048);
+            expect(config.ai.thinkingLevel).toBe("low");
+            expect(config.ai.thinkingBudget).toBe(0);
+            expect(config.tokens.costs.summarize).toBe(5);
+            expect(config.tokens.initialGrant.production).toBe(25);
+            expect(config.rateLimits.aiRequestsPerHour).toBe(20);
+            expect(config.fileUpload.maxSizeBytes).toBe(10485760);
             expect(config.features.summarizeEnabled).toBe(true);
             expect(config.version).toBe(1);
         });
@@ -170,10 +176,10 @@ describe("Config Service", () => {
             // Should have stored value
             expect(config.ai.model).toBe("partial-model");
             // Should have defaults for missing nested fields
-            expect(config.ai.maxTokensPerRequest).toBe(4096);
-            expect(config.ai.temperature).toBe(0.7);
+            expect(config.ai.maxTokensPerRequest).toBe(2048);
+            expect(config.ai.temperature).toBe(1.0);
             // Should have defaults for missing sections
-            expect(config.tokens.costs.summarize).toBe(2);
+            expect(config.tokens.costs.summarize).toBe(5);
             expect(config.features.summarizeEnabled).toBe(true);
         });
 
@@ -287,7 +293,7 @@ describe("Config Service", () => {
 
             expect(result.ai.model).toBe("new-model");
             // Should use defaults for everything else
-            expect(result.tokens.costs.summarize).toBe(2);
+            expect(result.tokens.costs.summarize).toBe(5);
             expect(result.version).toBe(2); // Started at 1, incremented to 2
         });
 

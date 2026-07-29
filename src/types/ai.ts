@@ -6,6 +6,7 @@
 
 import { Timestamp } from "firebase-admin/firestore";
 import { Flashcard } from "@/types/note.js";
+import { SupportedLanguage } from "@/utils/language.js";
 
 /**
  * AI Operation Types (matches OperationType in transaction.ts)
@@ -20,6 +21,8 @@ export interface SummarizeInput {
     content: string;
     /** Maximum length of summary in characters (optional) */
     maxLength?: number;
+    /** User's preferred language for the response (optional, defaults to "en") */
+    language?: SupportedLanguage;
 }
 
 /**
@@ -42,6 +45,8 @@ export interface AutoTagInput {
     title: string;
     /** Maximum number of tags to generate */
     maxTags?: number;
+    /** User's preferred language for the response (optional, defaults to "en") */
+    language?: SupportedLanguage;
 }
 
 /**
@@ -64,6 +69,8 @@ export interface FlashcardsInput {
     title: string;
     /** Number of flashcards to generate (default: 5) */
     count?: number;
+    /** User's preferred language for the response (optional, defaults to "en") */
+    language?: SupportedLanguage;
 }
 
 /**
@@ -86,6 +93,8 @@ export interface RAGQueryInput {
     context: string;
     /** Maximum response length */
     maxLength?: number;
+    /** User's preferred language for the response (optional, defaults to "en") */
+    language?: SupportedLanguage;
 }
 
 /**

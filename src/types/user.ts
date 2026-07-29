@@ -5,6 +5,7 @@
  */
 
 import { Timestamp } from "firebase-admin/firestore";
+import { SupportedLanguage } from "@/utils/language.js";
 
 export type UserRole = "client" | "admin";
 
@@ -34,7 +35,7 @@ export interface User {
 }
 
 export interface UserPreferences {
-    language: "en" | "es";
+    language: SupportedLanguage;
     theme: "light" | "dark";
     notificationsEnabled: boolean;
 }

@@ -24,6 +24,7 @@ import {
     RagQueryRequestSchema,
     validateRequest,
 } from "@/utils/validation.js";
+import { resolveUserLanguage } from "@/utils/language.js";
 import { ApiResponse } from "@/types/api.js";
 import { Note } from "@/types/note.js";
 
@@ -127,10 +128,14 @@ router.post(
             "summarize",
         );
 
+        // Get user's preferred language
+        const language = resolveUserLanguage(req.user);
+
         // Generate summary
         const result = await aiService.summarize(userId, {
             content: note.content,
             maxLength,
+            language,
         });
 
         // Update note with summary
@@ -220,11 +225,15 @@ router.post(
         // Deduct tokens first
         const deduction = await tokenService.deductTokens(userId, tokenCost, "autoTag");
 
+        // Get user's preferred language
+        const language = resolveUserLanguage(req.user);
+
         // Generate tags
         const result = await aiService.autoTag(userId, {
             title: note.title,
             content: note.content,
             maxTags,
+            language,
         });
 
         // Update note with AI tags
@@ -318,11 +327,15 @@ router.post(
             "flashcards",
         );
 
+        // Get user's preferred language
+        const language = resolveUserLanguage(req.user);
+
         // Generate flashcards
         const result = await aiService.generateFlashcards(userId, {
             title: note.title,
             content: note.content,
             count,
+            language,
         });
 
         // Update note with flashcards
@@ -421,10 +434,14 @@ router.post(
             "ragQuery",
         );
 
+        // Get user's preferred language
+        const language = resolveUserLanguage(req.user);
+
         // Generate answer
         const result = await aiService.ragQuery(userId, {
             query,
             context: ragContext.context,
+            language,
         });
 
         logEvent("rag_query_answered", {

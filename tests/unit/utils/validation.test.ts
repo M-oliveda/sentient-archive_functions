@@ -12,6 +12,7 @@ import {
     RagQueryRequestSchema,
     TokenMintRequestSchema,
     TokenHistoryQuerySchema,
+    UpdateProfileRequestSchema,
     AdminUserUpdateSchema,
     AdminUsersQuerySchema,
     AdminAnalyticsQuerySchema,
@@ -362,6 +363,69 @@ describe("Validation Utility", () => {
             const data = { type: "invalid" };
 
             expect(() => TokenHistoryQuerySchema.parse(data)).toThrow(z.ZodError);
+        });
+    });
+
+    describe("UpdateProfileRequestSchema", () => {
+        test("should validate displayName only", () => {
+            const data = { displayName: "Jane Doe" };
+            const result = UpdateProfileRequestSchema.parse(data);
+
+            expect(result.displayName).toBe("Jane Doe");
+            expect(result.language).toBeUndefined();
+        });
+
+        test("should validate language only", () => {
+            const data = { language: "es" };
+            const result = UpdateProfileRequestSchema.parse(data);
+
+            expect(result.language).toBe("es");
+            expect(result.displayName).toBeUndefined();
+        });
+
+        test("should validate displayName and language together", () => {
+            const data = { displayName: "Jane Doe", language: "fr" };
+            const result = UpdateProfileRequestSchema.parse(data);
+
+            expect(result.displayName).toBe("Jane Doe");
+            expect(result.language).toBe("fr");
+        });
+
+        test("should accept all supported languages", () => {
+            for (const language of ["en", "es", "fr", "pt"] as const) {
+                const result = UpdateProfileRequestSchema.parse({ language });
+                expect(result.language).toBe(language);
+            }
+        });
+
+        test("should trim displayName", () => {
+            const result = UpdateProfileRequestSchema.parse({
+                displayName: "  Jane Doe  ",
+            });
+
+            expect(result.displayName).toBe("Jane Doe");
+        });
+
+        test("should reject empty object (neither field provided)", () => {
+            expect(() => UpdateProfileRequestSchema.parse({})).toThrow(z.ZodError);
+        });
+
+        test("should reject empty displayName after trim", () => {
+            expect(() =>
+                UpdateProfileRequestSchema.parse({ displayName: "   " }),
+            ).toThrow(z.ZodError);
+        });
+
+        test("should reject displayName exceeding 80 characters", () => {
+            expect(() =>
+                UpdateProfileRequestSchema.parse({ displayName: "a".repeat(81) }),
+            ).toThrow(z.ZodError);
+        });
+
+        test("should reject invalid language", () => {
+            expect(() =>
+                UpdateProfileRequestSchema.parse({ language: "de" }),
+            ).toThrow(z.ZodError);
         });
     });
 

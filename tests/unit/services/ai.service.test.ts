@@ -230,6 +230,63 @@ describe("AI Service", () => {
             expect(result.summary).toBe("Summary without metadata");
             expect(result.tokensUsed).toBe(0);
         });
+
+        test("should include language instruction for Spanish", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("Resumen en español", 100),
+            );
+
+            await aiService.summarize("user-123", {
+                content: "Content to summarize",
+                language: "es",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+        });
+
+        test("should include language instruction for French", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("Résumé en français", 100),
+            );
+
+            await aiService.summarize("user-123", {
+                content: "Content to summarize",
+                language: "fr",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in French.");
+        });
+
+        test("should include language instruction for Portuguese", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("Resumo em português", 100),
+            );
+
+            await aiService.summarize("user-123", {
+                content: "Content to summarize",
+                language: "pt",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in Portuguese.",
+            );
+        });
+
+        test("should default to English when language not provided", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("English summary", 100),
+            );
+
+            await aiService.summarize("user-123", {
+                content: "Content to summarize",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
+        });
     });
 
     describe("autoTag", () => {
@@ -325,6 +382,35 @@ describe("AI Service", () => {
             expect(args.contents[0].parts[0].text).toContain(
                 "Generate up to 5 relevant tags",
             );
+        });
+
+        test("should include language instruction for Spanish", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse('["etiqueta-uno", "etiqueta-dos"]', 80),
+            );
+
+            await aiService.autoTag("user-123", {
+                title: "Título",
+                content: "Contenido",
+                language: "es",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+        });
+
+        test("should default to English when language not provided", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse('["tag-one", "tag-two"]', 80),
+            );
+
+            await aiService.autoTag("user-123", {
+                title: "Title",
+                content: "Content",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
         });
     });
 
@@ -440,6 +526,43 @@ describe("AI Service", () => {
 
             expect(result.flashcards).toHaveLength(3);
         });
+
+        test("should include language instruction for Spanish", async () => {
+            const flashcardsJson = JSON.stringify([
+                { front: "¿Qué es React?", back: "Una biblioteca de JavaScript" },
+            ]);
+
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse(flashcardsJson, 100),
+            );
+
+            await aiService.generateFlashcards("user-123", {
+                title: "React",
+                content: "Contenido sobre React",
+                language: "es",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+        });
+
+        test("should default to English when language not provided", async () => {
+            const flashcardsJson = JSON.stringify([
+                { front: "What is React?", back: "A JavaScript library" },
+            ]);
+
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse(flashcardsJson, 100),
+            );
+
+            await aiService.generateFlashcards("user-123", {
+                title: "React",
+                content: "Content about React",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
+        });
     });
 
     describe("ragQuery", () => {
@@ -489,6 +612,50 @@ describe("AI Service", () => {
             expect(args.contents[0].parts[0].text).toContain(
                 "X is a special thing that does Y",
             );
+        });
+
+        test("should include language instruction for Spanish", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("Respuesta en español", 50),
+            );
+
+            await aiService.ragQuery("user-123", {
+                query: "¿Qué es React?",
+                context: "React es una biblioteca de JavaScript",
+                language: "es",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+        });
+
+        test("should include language instruction for Portuguese", async () => {
+            mockGenerateContent.mockResolvedValue(
+                createMockResponse("Resposta em português", 50),
+            );
+
+            await aiService.ragQuery("user-123", {
+                query: "O que é React?",
+                context: "React é uma biblioteca JavaScript",
+                language: "pt",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in Portuguese.",
+            );
+        });
+
+        test("should default to English when language not provided", async () => {
+            mockGenerateContent.mockResolvedValue(createMockResponse("Answer", 50));
+
+            await aiService.ragQuery("user-123", {
+                query: "What is React?",
+                context: "React is a JavaScript library",
+            });
+
+            const args = getMockCallArgs(0);
+            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
         });
     });
 

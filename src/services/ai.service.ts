@@ -36,6 +36,7 @@ import {
     AIRequestLog,
 } from "@/types/ai.js";
 import { loadPromptsConfig, getDefaultAIConfig } from "@/utils/toml.js";
+import { buildLanguageInstruction } from "@/utils/language.js";
 
 /**
  * Get default prompts from TOML configuration
@@ -283,12 +284,14 @@ export class AIService {
             const config = await this.getConfig();
             const model = getGenerativeModel(config.model);
 
+            const language = input.language ?? "en";
             const prompt = `${config.systemPrompts.summarize}
 
 Content to summarize:
 ${input.content}
 
-${input.maxLength ? `Maximum summary length: ${input.maxLength} characters` : ""}`;
+${input.maxLength ? `Maximum summary length: ${input.maxLength} characters` : ""}
+${buildLanguageInstruction(language)}`;
 
             const result = await this.executeWithRetry(
                 () =>
@@ -354,6 +357,7 @@ ${input.maxLength ? `Maximum summary length: ${input.maxLength} characters` : ""
             const model = getGenerativeModel(config.model);
 
             const maxTags = input.maxTags ?? 5;
+            const language = input.language ?? "en";
 
             const prompt = `${config.systemPrompts.autoTag}
 
@@ -362,7 +366,8 @@ Title: ${input.title}
 Content:
 ${input.content}
 
-Generate up to ${maxTags} relevant tags.`;
+Generate up to ${maxTags} relevant tags.
+${buildLanguageInstruction(language)}`;
 
             const result = await this.executeWithRetry(
                 () =>
@@ -451,6 +456,7 @@ Generate up to ${maxTags} relevant tags.`;
             const model = getGenerativeModel(config.model);
 
             const count = input.count ?? 5;
+            const language = input.language ?? "en";
 
             const prompt = `${config.systemPrompts.flashcards}
 
@@ -459,7 +465,8 @@ Title: ${input.title}
 Content:
 ${input.content}
 
-Generate exactly ${count} flashcards.`;
+Generate exactly ${count} flashcards.
+${buildLanguageInstruction(language)}`;
 
             const result = await this.executeWithRetry(
                 () =>
@@ -553,6 +560,7 @@ Generate exactly ${count} flashcards.`;
             const config = await this.getConfig();
             const model = getGenerativeModel(config.model);
 
+            const language = input.language ?? "en";
             const prompt = `${config.systemPrompts.ragQuery}
 
 Context from your notes:
@@ -562,7 +570,8 @@ ${input.context}
 
 Question: ${input.query}
 
-${input.maxLength ? `Maximum response length: ${input.maxLength} characters` : ""}`;
+${input.maxLength ? `Maximum response length: ${input.maxLength} characters` : ""}
+${buildLanguageInstruction(language)}`;
 
             const result = await this.executeWithRetry(
                 () =>

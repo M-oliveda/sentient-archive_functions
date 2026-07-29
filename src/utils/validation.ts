@@ -181,13 +181,19 @@ export type TokenHistoryQuery = z.infer<typeof TokenHistoryQuerySchema>;
  * User Profile Schemas
  */
 
-export const UpdateProfileRequestSchema = z.object({
-    displayName: z
-        .string()
-        .trim()
-        .min(1, "Display name is required")
-        .max(80, "Display name cannot exceed 80 characters"),
-});
+export const UpdateProfileRequestSchema = z
+    .object({
+        displayName: z
+            .string()
+            .trim()
+            .min(1, "Display name is required")
+            .max(80, "Display name cannot exceed 80 characters")
+            .optional(),
+        language: z.enum(["en", "es", "fr", "pt"]).optional(),
+    })
+    .refine((data) => data.displayName !== undefined || data.language !== undefined, {
+        message: "At least one of displayName or language must be provided",
+    });
 
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
 

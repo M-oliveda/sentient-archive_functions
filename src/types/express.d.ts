@@ -16,6 +16,11 @@ declare global {
                 role: "client" | "admin";
                 isActive: boolean;
                 tokenBalance: number;
+                preferences: {
+                    language: "en" | "es" | "fr" | "pt";
+                    theme: "light" | "dark";
+                    notificationsEnabled: boolean;
+                };
             };
             uid?: string;
             file?: {

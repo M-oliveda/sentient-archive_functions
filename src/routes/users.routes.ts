@@ -19,7 +19,7 @@ const router = Router();
 /**
  * PUT /me
  *
- * Update the authenticated user's profile (displayName)
+ * Update the authenticated user's profile (displayName and/or language preference)
  */
 router.put(
     "/me",
@@ -28,13 +28,13 @@ router.put(
         const userId = req.uid!;
         const body = validateRequest(UpdateProfileRequestSchema, req.body);
 
-        logInfo("Update profile request", { userId });
+        logInfo("Update profile request", { userId, updates: body });
 
-        const updatedUser = await userService.updateProfile(userId, body.displayName);
+        const updatedUser = await userService.updateProfile(userId, body);
 
         logEvent("user_profile_updated", {
             userId,
-            displayName: body.displayName,
+            updates: body,
         });
 
         const response: ApiResponse<SerializedUser> = {

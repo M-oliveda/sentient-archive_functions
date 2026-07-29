@@ -98,8 +98,8 @@ describe("UserService", () => {
         mockAuthUpdateUser.mockResolvedValue(undefined);
     });
 
-    test("updateProfile updates Firestore and Auth", async () => {
-        const result = await userService.updateProfile("user-1", "Jane Doe");
+    test("updateProfile updates displayName in Firestore and Auth", async () => {
+        const result = await userService.updateProfile("user-1", { displayName: "Jane Doe" });
 
         expect(mockUpdate).toHaveBeenCalledWith(
             expect.objectContaining({ displayName: "Jane Doe" }),
@@ -112,11 +112,59 @@ describe("UserService", () => {
         expect(result.updatedAt).toBe("2024-06-01T12:00:00.000Z");
     });
 
+    test("updateProfile updates language preference", async () => {
+        const result = await userService.updateProfile("user-1", { language: "es" });
+
+        expect(mockUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({ "preferences.language": "es" }),
+        );
+        expect(mockAuthUpdateUser).not.toHaveBeenCalled();
+        expect(result.preferences.language).toBe("es");
+        expect(result.displayName).toBe("Old Name");
+        expect(result.updatedAt).toBe("2024-06-01T12:00:00.000Z");
+    });
+
+    test("updateProfile updates both displayName and language", async () => {
+        const result = await userService.updateProfile("user-1", {
+            displayName: "Jane Doe",
+            language: "fr",
+        });
+
+        expect(mockUpdate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                displayName: "Jane Doe",
+                "preferences.language": "fr",
+            }),
+        );
+        expect(mockAuthUpdateUser).toHaveBeenCalledWith("user-1", {
+            displayName: "Jane Doe",
+        });
+        expect(result.displayName).toBe("Jane Doe");
+        expect(result.preferences.language).toBe("fr");
+        expect(result.updatedAt).toBe("2024-06-01T12:00:00.000Z");
+    });
+
+    test("updateProfile supports all language options", async () => {
+        const languages: Array<"en" | "es" | "fr" | "pt"> = ["en", "es", "fr", "pt"];
+
+        for (const lang of languages) {
+            jest.clearAllMocks();
+            mockGetUserByUid.mockResolvedValue(mockUser as unknown as User);
+
+            const result = await userService.updateProfile("user-1", { language: lang });
+
+            expect(mockUpdate).toHaveBeenCalledWith(
+                expect.objectContaining({ "preferences.language": lang }),
+            );
+            expect(result.preferences.language).toBe(lang);
+        }
+    });
+
     test("updateProfile throws when user is missing", async () => {
         mockGetUserByUid.mockResolvedValue(null);
 
         await expect(
-            userService.updateProfile("missing", "Name"),
+            userService.updateProfile("missing", { displayName: "Name" }),
         ).rejects.toMatchObject({
             code: "NOT_FOUND",
             statusCode: 404,
@@ -131,7 +179,7 @@ describe("UserService", () => {
             updatedAt: null,
         } as unknown as User);
 
-        const result = await userService.updateProfile("user-1", "Jane Doe");
+        const result = await userService.updateProfile("user-1", { displayName: "Jane Doe" });
 
         expect(result.createdAt).toBeNull();
         expect(result.lastLoginAt).toBeNull();
@@ -149,7 +197,7 @@ describe("UserService", () => {
             updatedAt: undefined,
         } as unknown as User);
 
-        const result = await userService.updateProfile("user-1", "Jane Doe");
+        const result = await userService.updateProfile("user-1", { displayName: "Jane Doe" });
 
         expect(result.createdAt).toBeNull();
         expect(result.lastLoginAt).toBeNull();

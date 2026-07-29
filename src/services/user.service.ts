@@ -46,9 +46,12 @@ function serializeUser(user: User): SerializedUser {
 
 export class UserService {
     /**
-     * Update the authenticated user's display name in Firestore and Auth
+     * Update the authenticated user's profile (displayName and/or language preference)
      */
-    async updateProfile(uid: string, displayName: string): Promise<SerializedUser> {
+    async updateProfile(
+        uid: string,
+        updates: { displayName?: string; language?: "en" | "es" | "fr" | "pt" },
+    ): Promise<SerializedUser> {
         const db = getDb();
         const userRef = db.collection("users").doc(uid);
         const existing = await getUserByUid(uid);
@@ -59,21 +62,47 @@ export class UserService {
 
         const updatedAt = Timestamp.now();
 
-        await userRef.update({
-            displayName,
+        // Build the update object dynamically
+        const firestoreUpdate: Record<string, unknown> = {
             updatedAt,
-        });
+        };
 
-        const auth = getFirebaseAuth();
-        await auth.updateUser(uid, { displayName });
+        if (updates.displayName !== undefined) {
+            firestoreUpdate["displayName"] = updates.displayName;
+        }
 
-        logInfo("User profile updated", { uid, displayName });
+        if (updates.language !== undefined) {
+            firestoreUpdate["preferences.language"] = updates.language;
+        }
 
-        return serializeUser({
+        await userRef.update(firestoreUpdate);
+
+        // Only update Firebase Auth displayName if provided
+        if (updates.displayName !== undefined) {
+            const auth = getFirebaseAuth();
+            await auth.updateUser(uid, { displayName: updates.displayName });
+        }
+
+        logInfo("User profile updated", { uid, updates });
+
+        // Build the updated user object for serialization
+        const updatedUser: User = {
             ...existing,
-            displayName,
             updatedAt,
-        });
+        };
+
+        if (updates.displayName !== undefined) {
+            updatedUser.displayName = updates.displayName;
+        }
+
+        if (updates.language !== undefined) {
+            updatedUser.preferences = {
+                ...existing.preferences,
+                language: updates.language,
+            };
+        }
+
+        return serializeUser(updatedUser);
     }
 }
 

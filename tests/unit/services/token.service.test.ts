@@ -97,6 +97,19 @@ const createMockTransaction = (userDoc: MockUserDoc): MockFirestoreTransaction =
     set: jest.fn(),
 });
 
+/** Approve flow reads request doc first, then user doc */
+const createApproveMockTransaction = (
+    requestDoc: MockUserDoc,
+    userDoc: MockUserDoc = createMockUserDoc(true, {}),
+): MockFirestoreTransaction => ({
+    get: jest
+        .fn<(ref: unknown) => Promise<MockUserDoc>>()
+        .mockResolvedValueOnce(requestDoc)
+        .mockResolvedValueOnce(userDoc),
+    update: jest.fn(),
+    set: jest.fn(),
+});
+
 const mockDb = {
     collection: jest.fn((name: string) => {
         if (name === "transactions") {
@@ -651,7 +664,11 @@ describe("Token Service", () => {
             expect(requests).toHaveLength(2);
             expect(requests[0]).toEqual(mockRequests[0]);
             expect(requests[1]).toEqual(mockRequests[1]);
-            expect(mockQueryChain.where).toHaveBeenCalledWith("userId", "==", "user-123");
+            expect(mockQueryChain.where).toHaveBeenCalledWith(
+                "userId",
+                "==",
+                "user-123",
+            );
             expect(mockQueryChain.orderBy).toHaveBeenCalledWith("createdAt", "desc");
             expect(mockQueryChain.limit).toHaveBeenCalledWith(20);
         });
@@ -674,15 +691,17 @@ describe("Token Service", () => {
     });
 
     describe("getAdminTokenRequests", () => {
+        interface MockTokenRequest {
+            id: string;
+            userId: string;
+            amount: number;
+            status: string;
+            createdAt: { toDate: () => Date };
+        }
+
         const createRequest = (
-            overrides: Partial<{
-                id: string;
-                userId: string;
-                amount: number;
-                status: string;
-                createdAt: { toDate: () => Date };
-            }> = {},
-        ) => ({
+            overrides: Partial<MockTokenRequest> = {},
+        ): MockTokenRequest => ({
             id: "req-1",
             userId: "user-123",
             amount: 50,
@@ -768,7 +787,11 @@ describe("Token Service", () => {
 
             await tokenService.getAdminTokenRequests({ status: "pending" });
 
-            expect(mockQueryChain.where).toHaveBeenCalledWith("status", "==", "pending");
+            expect(mockQueryChain.where).toHaveBeenCalledWith(
+                "status",
+                "==",
+                "pending",
+            );
         });
 
         test("should not filter by status when status is all", async () => {
@@ -864,7 +887,9 @@ describe("Token Service", () => {
                 createdAt: { toDate: () => new Date("2024-01-30T00:00:00.000Z") },
             });
 
-            mockCollectionGet.mockResolvedValue(createSnapshot([inRange, before, after]));
+            mockCollectionGet.mockResolvedValue(
+                createSnapshot([inRange, before, after]),
+            );
             mockDocGet.mockResolvedValue(
                 createMockUserDoc(true, { email: "u@test.com", displayName: "U" }),
             );
@@ -888,18 +913,17 @@ describe("Token Service", () => {
             createdAt: mockTimestampNow(),
         };
 
-        test("should approve request and grant tokens", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
+        const pendingRequestDoc = createMockUserDoc(true, pendingRequest);
 
+        test("should approve request and grant tokens", async () => {
             const mockUserDoc = createMockUserDoc(true, {
                 tokenBalance: 100,
                 totalTokensGranted: 100,
             });
+            const mockTx = createApproveMockTransaction(pendingRequestDoc, mockUserDoc);
 
             mockRunTransaction.mockImplementation(async (updateFunction) => {
-                return updateFunction(createMockTransaction(mockUserDoc));
+                return updateFunction(mockTx);
             });
 
             const result = await tokenService.approveTokenRequest("req-1", "admin-456");
@@ -912,16 +936,45 @@ describe("Token Service", () => {
             expect(result.reviewedAt).toBeDefined();
         });
 
-        test("should use override amount when provided", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
-
+        test("should read all docs before writing in the transaction", async () => {
             const mockUserDoc = createMockUserDoc(true, {
                 tokenBalance: 100,
                 totalTokensGranted: 100,
             });
-            const mockTx = createMockTransaction(mockUserDoc);
+            const callOrder: string[] = [];
+            let getCallCount = 0;
+
+            const mockTx: MockFirestoreTransaction = {
+                get: jest.fn<(ref: unknown) => Promise<MockUserDoc>>(() => {
+                    callOrder.push("get");
+                    getCallCount += 1;
+                    return Promise.resolve(
+                        getCallCount === 1 ? pendingRequestDoc : mockUserDoc,
+                    );
+                }),
+                update: jest.fn(() => {
+                    callOrder.push("update");
+                }),
+                set: jest.fn(() => {
+                    callOrder.push("set");
+                }),
+            };
+
+            mockRunTransaction.mockImplementation(async (updateFunction) => {
+                return updateFunction(mockTx);
+            });
+
+            await tokenService.approveTokenRequest("req-1", "admin-456");
+
+            expect(callOrder).toEqual(["get", "get", "update", "update", "set"]);
+        });
+
+        test("should use override amount when provided", async () => {
+            const mockUserDoc = createMockUserDoc(true, {
+                tokenBalance: 100,
+                totalTokensGranted: 100,
+            });
+            const mockTx = createApproveMockTransaction(pendingRequestDoc, mockUserDoc);
 
             mockRunTransaction.mockImplementation(async (updateFunction) => {
                 return updateFunction(mockTx);
@@ -940,15 +993,11 @@ describe("Token Service", () => {
         });
 
         test("should use notes in transaction description when provided", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
-
             const mockUserDoc = createMockUserDoc(true, {
                 tokenBalance: 50,
                 totalTokensGranted: 50,
             });
-            const mockTx = createMockTransaction(mockUserDoc);
+            const mockTx = createApproveMockTransaction(pendingRequestDoc, mockUserDoc);
 
             mockRunTransaction.mockImplementation(async (updateFunction) => {
                 return updateFunction(mockTx);
@@ -970,14 +1019,10 @@ describe("Token Service", () => {
         });
 
         test("should use default description when notes not provided", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
-
             const mockUserDoc = createMockUserDoc(true, {
                 tokenBalance: 0,
             });
-            const mockTx = createMockTransaction(mockUserDoc);
+            const mockTx = createApproveMockTransaction(pendingRequestDoc, mockUserDoc);
 
             mockRunTransaction.mockImplementation(async (updateFunction) => {
                 return updateFunction(mockTx);
@@ -995,7 +1040,11 @@ describe("Token Service", () => {
         });
 
         test("should throw NOT_FOUND when request does not exist", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(createMockUserDoc(false));
+            mockRunTransaction.mockImplementation(async (updateFunction) => {
+                return updateFunction(
+                    createApproveMockTransaction(createMockUserDoc(false)),
+                );
+            });
 
             await expect(
                 tokenService.approveTokenRequest("missing", "admin-456"),
@@ -1007,9 +1056,16 @@ describe("Token Service", () => {
         });
 
         test("should throw INVALID_REQUEST when request is not pending", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, { ...pendingRequest, status: "approved" }),
-            );
+            mockRunTransaction.mockImplementation(async (updateFunction) => {
+                return updateFunction(
+                    createApproveMockTransaction(
+                        createMockUserDoc(true, {
+                            ...pendingRequest,
+                            status: "approved",
+                        }),
+                    ),
+                );
+            });
 
             await expect(
                 tokenService.approveTokenRequest("req-1", "admin-456"),
@@ -1021,12 +1077,13 @@ describe("Token Service", () => {
         });
 
         test("should re-throw AppError when user not found in transaction", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
-
             mockRunTransaction.mockImplementation(async (updateFunction) => {
-                return updateFunction(createMockTransaction(createMockUserDoc(false)));
+                return updateFunction(
+                    createApproveMockTransaction(
+                        pendingRequestDoc,
+                        createMockUserDoc(false),
+                    ),
+                );
             });
 
             await expect(
@@ -1039,9 +1096,6 @@ describe("Token Service", () => {
         });
 
         test("should handle transaction errors", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
             mockRunTransaction.mockRejectedValue(new Error("Transaction failed"));
 
             await expect(
@@ -1054,9 +1108,6 @@ describe("Token Service", () => {
         });
 
         test("should handle non-Error thrown from transaction", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
             mockRunTransaction.mockRejectedValue("string error");
 
             await expect(
@@ -1068,12 +1119,8 @@ describe("Token Service", () => {
         });
 
         test("should handle undefined token fields with defaults", async () => {
-            mockTokenRequestRef.get.mockResolvedValue(
-                createMockUserDoc(true, pendingRequest),
-            );
-
             const mockUserDoc = createMockUserDoc(true, {});
-            const mockTx = createMockTransaction(mockUserDoc);
+            const mockTx = createApproveMockTransaction(pendingRequestDoc, mockUserDoc);
 
             mockRunTransaction.mockImplementation(async (updateFunction) => {
                 return updateFunction(mockTx);

@@ -480,37 +480,30 @@ export class TokenService {
     ): Promise<TokenRequest> {
         const db = getDb();
         const requestRef = db.collection("tokenRequests").doc(requestId);
-        const requestDoc = await requestRef.get();
-
-        if (!requestDoc.exists) {
-            throw new AppError("NOT_FOUND", 404, "Token request not found");
-        }
-
-        const request = requestDoc.data() as TokenRequest;
-
-        if (request.status !== "pending") {
-            throw new AppError(
-                "INVALID_REQUEST",
-                400,
-                `Cannot approve request with status: ${request.status}`,
-            );
-        }
-
-        const grantAmount = overrideAmount ?? request.amount;
+        const transactionRef = db.collection("transactions").doc();
         const now = Timestamp.now();
 
         try {
-            // Use transaction to atomically approve and grant tokens
-            await db.runTransaction(async (transaction) => {
-                // Update token request status
-                transaction.update(requestRef, {
-                    status: "approved",
-                    reviewedAt: now,
-                    reviewedBy: approvedBy,
-                });
+            // All reads must complete before any writes in a Firestore transaction
+            const approved = await db.runTransaction(async (transaction) => {
+                const requestSnap = await transaction.get(requestRef);
 
-                // Grant tokens to user
-                const userRef = db.collection("users").doc(request.userId);
+                if (!requestSnap.exists) {
+                    throw new AppError("NOT_FOUND", 404, "Token request not found");
+                }
+
+                const requestData = requestSnap.data() as TokenRequest;
+
+                if (requestData.status !== "pending") {
+                    throw new AppError(
+                        "INVALID_REQUEST",
+                        400,
+                        `Cannot approve request with status: ${requestData.status}`,
+                    );
+                }
+
+                const grantAmount = overrideAmount ?? requestData.amount;
+                const userRef = db.collection("users").doc(requestData.userId);
                 const userDoc = await transaction.get(userRef);
 
                 if (!userDoc.exists) {
@@ -522,11 +515,9 @@ export class TokenService {
                 const totalGranted = (userData?.["totalTokensGranted"] as number) ?? 0;
                 const newBalance = currentBalance + grantAmount;
 
-                // Create transaction record for the grant
-                const transactionRef = db.collection("transactions").doc();
                 const transactionData: Transaction = {
                     id: transactionRef.id,
-                    userId: request.userId,
+                    userId: requestData.userId,
                     type: "grant",
                     amount: grantAmount,
                     operation: "admin_grant",
@@ -537,6 +528,12 @@ export class TokenService {
                     grantedBy: approvedBy,
                 };
 
+                transaction.update(requestRef, {
+                    status: "approved",
+                    reviewedAt: now,
+                    reviewedBy: approvedBy,
+                });
+
                 transaction.update(userRef, {
                     tokenBalance: newBalance,
                     totalTokensGranted: totalGranted + grantAmount,
@@ -544,18 +541,22 @@ export class TokenService {
                 });
 
                 transaction.set(transactionRef, transactionData);
+
+                return {
+                    request: requestData,
+                    grantAmount,
+                };
             });
 
             logEvent("token_request_approved", {
                 requestId,
-                userId: request.userId,
-                amount: grantAmount,
+                userId: approved.request.userId,
+                amount: approved.grantAmount,
                 approvedBy,
             });
 
-            // Return updated request
             return {
-                ...request,
+                ...approved.request,
                 status: "approved",
                 reviewedAt: now,
                 reviewedBy: approvedBy,
@@ -569,7 +570,6 @@ export class TokenService {
                 error instanceof Error ? error : undefined,
                 {
                     requestId,
-                    userId: request.userId,
                 },
             );
             throw new AppError(

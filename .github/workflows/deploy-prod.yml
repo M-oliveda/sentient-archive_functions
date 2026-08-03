@@ -154,6 +154,7 @@ jobs:
 
       - name: Deploy to Firebase (Functions, Firestore, Hosting)
         run: |
+          printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" > .env
           firebase deploy --only functions,firestore:rules,firestore:indexes,hosting --force --project ${{ secrets.GCP_PROJECT_ID }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

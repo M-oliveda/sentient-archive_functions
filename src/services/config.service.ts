@@ -73,8 +73,6 @@ const DEFAULT_CONFIG: Omit<SystemConfig, "createdAt" | "lastUpdatedAt"> = {
         model: "gemini-3.5-flash",
         maxTokensPerRequest: 2048,
         temperature: 1.0,
-        thinkingLevel: "low",
-        thinkingBudget: 0,
     },
     tokens: {
         initialGrant: {

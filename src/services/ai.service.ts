@@ -14,6 +14,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 import {
     getGenerativeModel,
+    supportsThinking,
     DEFAULT_MODEL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
@@ -300,12 +301,14 @@ ${buildLanguageInstruction(language)}`;
                         generationConfig: {
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
-                            ...(config.thinkingLevel && {
-                                thinkingLevel: config.thinkingLevel,
-                            }),
-                            ...(config.thinkingBudget !== undefined && {
-                                thinkingBudget: config.thinkingBudget,
-                            }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingLevel && {
+                                    thinkingLevel: config.thinkingLevel,
+                                }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingBudget !== undefined && {
+                                    thinkingBudget: config.thinkingBudget,
+                                }),
                         },
                     }),
                 "summarize",
@@ -377,12 +380,14 @@ ${buildLanguageInstruction(language)}`;
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
                             responseMimeType: "application/json",
-                            ...(config.thinkingLevel && {
-                                thinkingLevel: config.thinkingLevel,
-                            }),
-                            ...(config.thinkingBudget !== undefined && {
-                                thinkingBudget: config.thinkingBudget,
-                            }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingLevel && {
+                                    thinkingLevel: config.thinkingLevel,
+                                }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingBudget !== undefined && {
+                                    thinkingBudget: config.thinkingBudget,
+                                }),
                         },
                     }),
                 "autoTag",
@@ -476,12 +481,14 @@ ${buildLanguageInstruction(language)}`;
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
                             responseMimeType: "application/json",
-                            ...(config.thinkingLevel && {
-                                thinkingLevel: config.thinkingLevel,
-                            }),
-                            ...(config.thinkingBudget !== undefined && {
-                                thinkingBudget: config.thinkingBudget,
-                            }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingLevel && {
+                                    thinkingLevel: config.thinkingLevel,
+                                }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingBudget !== undefined && {
+                                    thinkingBudget: config.thinkingBudget,
+                                }),
                         },
                     }),
                 "flashcards",
@@ -580,12 +587,14 @@ ${buildLanguageInstruction(language)}`;
                         generationConfig: {
                             temperature: config.temperature,
                             maxOutputTokens: config.maxTokensPerRequest,
-                            ...(config.thinkingLevel && {
-                                thinkingLevel: config.thinkingLevel,
-                            }),
-                            ...(config.thinkingBudget !== undefined && {
-                                thinkingBudget: config.thinkingBudget,
-                            }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingLevel && {
+                                    thinkingLevel: config.thinkingLevel,
+                                }),
+                            ...(supportsThinking(config.model) &&
+                                config.thinkingBudget !== undefined && {
+                                    thinkingBudget: config.thinkingBudget,
+                                }),
                         },
                     }),
                 "ragQuery",

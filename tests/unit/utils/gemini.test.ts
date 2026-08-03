@@ -30,6 +30,7 @@ describe("Gemini Client Utility", () => {
     let getGenerativeModel: typeof import("@/utils/gemini.js").getGenerativeModel;
     let resetGeminiClient: typeof import("@/utils/gemini.js").resetGeminiClient;
     let isGeminiConfigured: typeof import("@/utils/gemini.js").isGeminiConfigured;
+    let supportsThinking: typeof import("@/utils/gemini.js").supportsThinking;
     let DEFAULT_MODEL: string;
     let DEFAULT_MAX_TOKENS: number;
     let DEFAULT_TEMPERATURE: number;
@@ -51,6 +52,7 @@ describe("Gemini Client Utility", () => {
         getGenerativeModel = mod.getGenerativeModel;
         resetGeminiClient = mod.resetGeminiClient;
         isGeminiConfigured = mod.isGeminiConfigured;
+        supportsThinking = mod.supportsThinking;
         DEFAULT_MODEL = mod.DEFAULT_MODEL;
         DEFAULT_MAX_TOKENS = mod.DEFAULT_MAX_TOKENS;
         DEFAULT_TEMPERATURE = mod.DEFAULT_TEMPERATURE;
@@ -139,6 +141,18 @@ describe("Gemini Client Utility", () => {
             delete process.env["GEMINI_API_KEY"];
 
             expect(isGeminiConfigured()).toBe(false);
+        });
+    });
+
+    describe("supportsThinking", () => {
+        test("returns true for Gemini 2.5 model names", () => {
+            expect(supportsThinking("gemini-2.5-flash")).toBe(true);
+            expect(supportsThinking("GEMINI-2.5-PRO")).toBe(true);
+        });
+
+        test("returns false for models that do not support thinking config", () => {
+            expect(supportsThinking("gemini-3.5-flash")).toBe(false);
+            expect(supportsThinking("gemini-2.0-flash")).toBe(false);
         });
     });
 

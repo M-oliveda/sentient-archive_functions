@@ -127,6 +127,7 @@ jest.unstable_mockModule("@/utils/gemini.js", () => ({
     DEFAULT_MODEL: "gemini-3.5-flash",
     DEFAULT_MAX_TOKENS: 2048,
     DEFAULT_TEMPERATURE: 1.0,
+    supportsThinking: jest.fn((model: string) => /gemini-2\.5/i.test(model)),
 }));
 
 // Import module dynamically after mocking
@@ -242,7 +243,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in Spanish.",
+            );
         });
 
         test("should include language instruction for French", async () => {
@@ -256,7 +259,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in French.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in French.",
+            );
         });
 
         test("should include language instruction for Portuguese", async () => {
@@ -285,7 +290,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in English.",
+            );
         });
     });
 
@@ -396,7 +403,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in Spanish.",
+            );
         });
 
         test("should default to English when language not provided", async () => {
@@ -410,7 +419,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in English.",
+            );
         });
     });
 
@@ -543,7 +554,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in Spanish.",
+            );
         });
 
         test("should default to English when language not provided", async () => {
@@ -561,7 +574,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in English.",
+            );
         });
     });
 
@@ -626,7 +641,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in Spanish.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in Spanish.",
+            );
         });
 
         test("should include language instruction for Portuguese", async () => {
@@ -655,7 +672,9 @@ describe("AI Service", () => {
             });
 
             const args = getMockCallArgs(0);
-            expect(args.contents[0].parts[0].text).toContain("Respond entirely in English.");
+            expect(args.contents[0].parts[0].text).toContain(
+                "Respond entirely in English.",
+            );
         });
     });
 
@@ -831,7 +850,7 @@ describe("AI Service", () => {
                 exists: true,
                 data: () => ({
                     ai: {
-                        model: "gemini-3.5-flash",
+                        model: "gemini-2.5-flash",
                         temperature: 0.7,
                         maxTokensPerRequest: 2048,
                         thinkingLevel: "high",
@@ -852,7 +871,7 @@ describe("AI Service", () => {
                 exists: true,
                 data: () => ({
                     ai: {
-                        model: "gemini-3.5-flash",
+                        model: "gemini-2.5-flash",
                         temperature: 0.7,
                         maxTokensPerRequest: 2048,
                         thinkingBudget: 5000,
@@ -873,7 +892,7 @@ describe("AI Service", () => {
                 exists: true,
                 data: () => ({
                     ai: {
-                        model: "gemini-3.5-flash",
+                        model: "gemini-2.5-flash",
                         temperature: 0.7,
                         maxTokensPerRequest: 2048,
                         thinkingLevel: "medium",
@@ -898,7 +917,7 @@ describe("AI Service", () => {
                 exists: true,
                 data: () => ({
                     ai: {
-                        model: "gemini-3.5-flash",
+                        model: "gemini-2.5-flash",
                         temperature: 0.7,
                         maxTokensPerRequest: 2048,
                         thinkingLevel: "low",
@@ -932,7 +951,7 @@ describe("AI Service", () => {
                 exists: true,
                 data: () => ({
                     ai: {
-                        model: "gemini-3.5-flash",
+                        model: "gemini-2.5-flash",
                         temperature: 0.7,
                         maxTokensPerRequest: 2048,
                         thinkingLevel: "high",

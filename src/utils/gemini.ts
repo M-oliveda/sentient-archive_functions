@@ -109,6 +109,16 @@ function createEmulatorStub(): GenerativeModel {
 }
 
 /**
+ * Returns true only for models that accept thinkingLevel/thinkingBudget in
+ * generationConfig. Gemini 2.5 introduced these fields; 3.x and earlier
+ * non-thinking models reject them with a 400 Bad Request.
+ */
+export function supportsThinking(modelName: string): boolean {
+    const regex = /gemini-2\.5/i;
+    return regex.test(modelName);
+}
+
+/**
  * Reset the client (useful for testing)
  */
 export function resetGeminiClient(): void {

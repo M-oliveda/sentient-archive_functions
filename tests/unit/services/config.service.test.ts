@@ -102,8 +102,8 @@ describe("Config Service", () => {
 
             expect(config.ai.model).toBe("gemini-3.5-flash");
             expect(config.ai.maxTokensPerRequest).toBe(2048);
-            expect(config.ai.thinkingLevel).toBe("low");
-            expect(config.ai.thinkingBudget).toBe(0);
+            expect(config.ai.thinkingLevel).toBeUndefined();
+            expect(config.ai.thinkingBudget).toBeUndefined();
             expect(config.tokens.costs.summarize).toBe(5);
             expect(config.tokens.initialGrant.production).toBe(25);
             expect(config.rateLimits.aiRequestsPerHour).toBe(20);

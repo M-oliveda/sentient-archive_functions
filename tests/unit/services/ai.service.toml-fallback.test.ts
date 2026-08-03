@@ -118,6 +118,7 @@ jest.unstable_mockModule("@/utils/gemini.js", () => ({
     DEFAULT_MODEL: "gemini-3.5-flash",
     DEFAULT_MAX_TOKENS: 2048,
     DEFAULT_TEMPERATURE: 1.0,
+    supportsThinking: jest.fn(() => false),
 }));
 
 // Mock TOML utilities to throw errors for testing fallback behavior

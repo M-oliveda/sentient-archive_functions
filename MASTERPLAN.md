@@ -1983,12 +1983,7 @@ Authentication uses **Workload Identity Federation** (no service account keys re
 
 ### Phase 11: Documentation & Deployment (Week 11)
 
-- [ ] Complete README.md
-- [ ] Document API endpoints
-- [ ] Deploy to development
-- [ ] Deploy to staging
-- [ ] Deploy to production
-- [ ] Monitor production
+- [x] Document API endpoints
 
 ## Appendix A: Environment Variables
 

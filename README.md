@@ -133,6 +133,8 @@ This backend works in conjunction with the frontend application:
 
 ## API Endpoints
 
+> **Canonical reference:** See [docs/README.md](./docs/README.md) for the complete, up-to-date API documentation covering all 26 endpoints.
+
 ### Authentication
 
 All endpoints require Firebase ID Token in the `Authorization` header:

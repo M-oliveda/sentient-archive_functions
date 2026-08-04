@@ -1834,12 +1834,12 @@ jobs:
 including ephemeral PR previews, Cloud Functions supports **4 environments** due to
 Firebase project limitations.
 
-| Environment     | Branch Source | GCP Project                   | Deployment Trigger | Notes                       |
-| :-------------- | :------------ | :---------------------------- | :----------------- | :-------------------------- |
-| **Local**       | `feature/*`   | `demo-sentient-archive`       | Manual (emulator)  | Docker Compose + Emulators  |
-| **Development** | `develop`     | `moliveda-gcloudprojects-dev` | Auto (on push)     | Shared dev environment      |
-| **Staging**     | `release/*`   | `moliveda-gcloudprojects-stg` | Auto (on push)     | Pre-production testing      |
-| **Production**  | `main`        | `moliveda-gcloudprojects-prod`| Manual Dispatch    | Live production environment |
+| Environment     | Branch Source | GCP Project                    | Deployment Trigger | Notes                       |
+| :-------------- | :------------ | :----------------------------- | :----------------- | :-------------------------- |
+| **Local**       | `feature/*`   | `demo-sentient-archive`        | Manual (emulator)  | Docker Compose + Emulators  |
+| **Development** | `develop`     | `moliveda-gcloudprojects-dev`  | Auto (on push)     | Shared dev environment      |
+| **Staging**     | `release/*`   | `moliveda-gcloudprojects-stg`  | Auto (on push)     | Pre-production testing      |
+| **Production**  | `main`        | `moliveda-gcloudprojects-prod` | Manual Dispatch    | Live production environment |
 
 #### Why No Preview Environment?
 
@@ -1883,10 +1883,10 @@ Authentication uses **Workload Identity Federation** (no service account keys re
 
 **Environment-specific values:**
 
-| Secret | Development | Staging | Production |
-| :----- | :---------- | :------ | :--------- |
-| `GCP_PROJECT_ID` | `moliveda-gcloudprojects-dev` | `moliveda-gcloudprojects-stg` | `moliveda-gcloudprojects-prod` |
-| `GCP_SERVICE_ACCOUNT` | `cicd-deployer-dev@...` | `cicd-deployer-stg@...` | `cicd-deployer-prod@...` |
+| Secret                | Development                   | Staging                       | Production                     |
+| :-------------------- | :---------------------------- | :---------------------------- | :----------------------------- |
+| `GCP_PROJECT_ID`      | `moliveda-gcloudprojects-dev` | `moliveda-gcloudprojects-stg` | `moliveda-gcloudprojects-prod` |
+| `GCP_SERVICE_ACCOUNT` | `cicd-deployer-dev@...`       | `cicd-deployer-stg@...`       | `cicd-deployer-prod@...`       |
 
 ## 13. Development Phases
 

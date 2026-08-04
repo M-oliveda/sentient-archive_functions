@@ -1,0 +1,99 @@
+# CI Workflow
+#
+# Runs on all pull requests to develop and main branches
+# Validates code quality, runs tests, and checks coverage
+
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format Check
+        run: npm run format:check
+
+      - name: Type Check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit:coverage
+
+      - name: Check coverage is 100%
+        run: |
+          # Extract coverage percentages from Jest output
+          COVERAGE_OUTPUT=$(npm run test:unit:coverage 2>&1 | grep "All files" | head -1)
+
+          # Check if all coverage metrics are 100%
+          if echo "$COVERAGE_OUTPUT" | grep -E "100\s*\|\s*100\s*\|\s*100\s*\|\s*100" > /dev/null; then
+            echo "Coverage check passed - 100% coverage achieved"
+          else
+            echo "Coverage check failed - coverage is not at 100%"
+            echo "$COVERAGE_OUTPUT"
+            exit 1
+          fi
+
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Setup Java (for Firebase Emulator)
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Build
+        run: npm run build
+
+      - name: Run integration tests with emulators
+        run: |
+          firebase emulators:exec \
+            --only firestore,auth \
+            --project demo-sentient-archive \
+            'npm run test:integration'
+        env:
+          FIRESTORE_EMULATOR_HOST: localhost:8081
+          FIREBASE_AUTH_EMULATOR_HOST: localhost:9099

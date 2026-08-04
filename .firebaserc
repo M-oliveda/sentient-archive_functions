@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "demo-sentient-archive",
+    "local": "demo-sentient-archive",
+    "dev": "moliveda-gcloudprojects-dev",
+    "staging": "moliveda-gcloudprojects-stg",
+    "production": "moliveda-gcloudprojects-prod"
+  }
+}

@@ -1,0 +1,97 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Users can create their own document (initial sign-up via client SDK);
+      // role is forced to "client" to prevent privilege escalation
+      allow create: if isOwner(userId) && request.resource.data.role == "client";
+
+      // Only admins can update or delete user documents
+      allow update, delete: if isAdmin();
+
+      // User's notes subcollection
+      match /notes/{noteId} {
+        // Users can manage their own notes
+        allow read, write: if isOwner(userId);
+      }
+
+      // User's folders subcollection
+      match /folders/{folderId} {
+        // Users can manage their own folders
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Token requests collection
+    match /tokenRequests/{requestId} {
+      // Users can read their own requests, admins can read all
+      allow read: if isAuthenticated() &&
+                     (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Only backend can write token requests (via Admin SDK)
+      allow write: if false;
+    }
+
+    // Transactions collection
+    match /transactions/{transactionId} {
+      // Users can read their own transactions, admins can read all
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Only backend can write transactions (via Admin SDK)
+      allow write: if false;
+    }
+
+    // AI requests audit log
+    match /ai_requests/{requestId} {
+      // Users can read their own requests, admins can read all
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Only backend can write AI requests (via Admin SDK)
+      allow write: if false;
+    }
+
+    // System configuration
+    match /system_config/{document} {
+      // Anyone authenticated can read config
+      allow read: if isAuthenticated();
+      
+      // Only admins can update config
+      allow write: if isAdmin();
+    }
+
+    // Analytics
+    match /analytics/{document=**} {
+      // Only admins can read analytics
+      allow read: if isAdmin();
+      
+      // Only backend can write analytics (via Admin SDK)
+      allow write: if false;
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

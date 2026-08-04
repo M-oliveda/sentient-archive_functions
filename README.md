@@ -133,6 +133,8 @@ This backend works in conjunction with the frontend application:
 
 ## API Endpoints
 
+> **Canonical reference:** See [docs/README.md](./docs/README.md) for the complete, up-to-date API documentation covering all 26 endpoints.
+
 ### Authentication
 
 All endpoints require Firebase ID Token in the `Authorization` header:
@@ -494,7 +496,7 @@ Edit `.env` and add your Gemini API key:
 GEMINI_API_KEY=your_gemini_api_key_here
 NODE_ENV=development
 FUNCTIONS_EMULATOR=true
-FIREBASE_PROJECT_ID=demo-sentient-archive
+GCP_PROJECT_ID=demo-sentient-archive
 ```
 
 **4. Start Firebase Emulators:**
@@ -614,7 +616,82 @@ git flow feature finish file-extraction
 :lock: Add file size validation middleware
 ```
 
-**2. Test with emulators:**
+**2. Seed test data:**
+
+The project includes a comprehensive seed script that populates the Firebase emulators
+with realistic test data for development and testing.
+
+```bash
+# Start emulators (if not already running)
+npm run emulators:start
+
+# Wait for emulators to be ready (about 10-15 seconds)
+# Then seed test data
+npm run seed
+
+# Or use the script directly
+./scripts/run-seed.sh
+```
+
+**What gets seeded:**
+
+- **2 Admin accounts** with elevated privileges
+- **8 Client accounts** with standard user permissions
+- **60-100 Notes** distributed across client users with realistic content
+- **Transaction history** showing token grants and deductions
+- **System configuration** with AI model settings and token costs
+
+**Test Credentials (after seeding):**
+
+```text
+Admin Accounts:
+  Email:    admin1@sentientarchive.local
+  Password: Admin123!
+
+  Email:    admin2@sentientarchive.local
+  Password: Admin123!
+
+Client Accounts:
+  All client accounts use password: Client123!
+  Emails are displayed in the seed output
+```
+
+**Seed Script Features:**
+
+- ✅ Waits for emulators to be healthy before seeding
+- ✅ Generates realistic data using Faker.js
+- ✅ Creates proper Firestore structure with timestamps
+- ✅ Sets up token economy with transaction history
+- ✅ Displays credentials summary after completion
+- ✅ Handles errors gracefully
+
+**Persistent Data:**
+
+When you stop the emulators gracefully, data is automatically exported:
+
+```bash
+# Stop emulators (triggers --export-on-exit)
+npm run emulators:stop
+
+# Or with Docker Compose
+docker compose stop
+```
+
+The seeded data is saved to `./firebase/seed-data/` and will be automatically imported
+on the next startup, so you don't need to re-seed every time.
+
+**Reset and Re-seed:**
+
+```bash
+# Clear all data and seed fresh
+npm run seed:fresh
+
+# Or manually:
+npm run emulators:reset  # Clears data and restarts
+npm run seed             # Seeds fresh data
+```
+
+**3. Test with emulators:**
 
 ```bash
 # Terminal 1: Start emulators
@@ -629,7 +706,7 @@ npm run test:watch
 # Make changes, tests run automatically
 ```
 
-**3. Before committing:**
+**4. Before committing:**
 
 ```bash
 # Husky pre-commit hook will automatically run:
@@ -659,7 +736,7 @@ NODE_ENV=development
 FUNCTIONS_EMULATOR=true
 
 # Firebase Project ID (for emulator)
-FIREBASE_PROJECT_ID=demo-sentient-archive
+GCP_PROJECT_ID=demo-sentient-archive
 ```
 
 **Firebase Functions Config (for deployed environments):**
@@ -697,14 +774,20 @@ reload support.
 # Start all services
 docker compose up -d
 
-# View logs
-docker compose logs -f
+# View logs (follow mode)
+docker compose logs -f firebase-emulators
 
 # Stop all services
 docker compose down
 
 # Restart services
-docker compose restart
+docker compose restart firebase-emulators
+
+# Rebuild container after Dockerfile changes
+docker compose up -d --build
+
+# Complete rebuild (no cache)
+npm run emulators:rebuild
 
 # Reset data (fresh start)
 npm run emulators:reset
@@ -1039,12 +1122,12 @@ SentientArchive Functions are deployed to Firebase Cloud Functions (Gen 2).
 **Important:** Cloud Functions supports **4 environments** (not 5 like the web
 repository) due to Firebase project limitations.
 
-| Environment     | Branch Source | Firebase Project           | Deployment Trigger | Notes                       |
-| :-------------- | :------------ | :------------------------- | :----------------- | :-------------------------- |
-| **Local**       | `feature/*`   | `demo-sentient-archive`    | Manual (emulator)  | Docker Compose + Emulators  |
-| **Development** | `develop`     | `sentient-archive-dev`     | Auto (on push)     | Shared dev environment      |
-| **Staging**     | `release/*`   | `sentient-archive-staging` | Auto (on push)     | Pre-production testing      |
-| **Production**  | `main`        | `sentient-archive-prod`    | Manual Dispatch    | Live production environment |
+| Environment     | Branch Source | GCP Project                    | Deployment Trigger | Notes                       |
+| :-------------- | :------------ | :----------------------------- | :----------------- | :-------------------------- |
+| **Local**       | `feature/*`   | `demo-sentient-archive`        | Manual (emulator)  | Docker Compose + Emulators  |
+| **Development** | `develop`     | `moliveda-gcloudprojects-dev`  | Auto (on push)     | Shared dev environment      |
+| **Staging**     | `release/*`   | `moliveda-gcloudprojects-stg`  | Auto (on push)     | Pre-production testing      |
+| **Production**  | `main`        | `moliveda-gcloudprojects-prod` | Manual Dispatch    | Live production environment |
 
 **Why No Preview Environment?**
 
@@ -1139,34 +1222,31 @@ Manual trigger from `main` branch:
 - Builds functions
 - Deploys to production environment
 
-**Required GitHub Secrets:**
+**Required GitHub Secrets (per environment):**
+
+Authentication uses **Workload Identity Federation** (no service account keys required).
 
 ```text
-# Development
-GCP_SA_KEY_DEV
-GEMINI_API_KEY_DEV
-
-# Staging
-GCP_SA_KEY_STAGING
-GEMINI_API_KEY_STAGING
-
-# Production
-GCP_SA_KEY_PROD
-GEMINI_API_KEY_PROD
+# All environments (development, staging, production)
+GCP_PROJECT_ID                    # GCP Project ID
+GCP_WORKLOAD_IDENTITY_PROVIDER    # Workload Identity Provider path
+GCP_SERVICE_ACCOUNT               # Service account email for CI/CD
+GEMINI_API_KEY                    # Gemini API key
 ```
 
-**Setup Service Account:**
+**Setup Workload Identity Federation:**
 
-1. Create a Service Account in Google Cloud Console
-2. Grant `Cloud Functions Developer` and `Service Account User` roles
-3. Download the JSON key
-4. Add the key content to GitHub Secrets
+1. Create a Workload Identity Pool in Google Cloud Console
+2. Add a GitHub provider to the pool
+3. Create a Service Account with required roles
+4. Grant the Service Account access to the Workload Identity Pool
+5. Add the secrets to each GitHub environment
 
 ### Environment URLs
 
-- **Development:** `https://us-central1-sentient-archive-dev.cloudfunctions.net`
-- **Staging:** `https://us-central1-sentient-archive-staging.cloudfunctions.net`
-- **Production:** `https://us-central1-sentient-archive-prod.cloudfunctions.net`
+- **Development:** `https://us-central1-moliveda-gcloudprojects-dev.cloudfunctions.net`
+- **Staging:** `https://us-central1-moliveda-gcloudprojects-stg.cloudfunctions.net`
+- **Production:** `https://us-central1-moliveda-gcloudprojects-prod.cloudfunctions.net`
 
 ### Firestore Setup
 
